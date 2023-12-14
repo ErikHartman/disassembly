@@ -34,7 +34,7 @@ def subset_graph(objects, object):
         object
     ]
     new_dict = {}
-    for seq, count in nodes.items():
+    for seq, count in objects.items():
         if seq in subsetted_nodes:
             new_dict[seq] = count
     nodes = new_dict
