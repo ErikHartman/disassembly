@@ -1,10 +1,23 @@
 import networkx as nx
+import math
 
-
-def get_disassembly_indexes(objects: dict):
+def get_disassembly(objects : dict):
     """
     objects is a dict of {object:copy_number}
     """
+    disassembly = 0 
+    n_t = sum(objects.values()) # total number of copies in ensemble
+    disassembly_indexes = get_disassembly_indexes(objects)
+
+    for seq in objects.keys():
+        n_i_minus_one = objects[seq]-1
+        if n_i_minus_one > 0:
+            disassembly += (math.e**disassembly_indexes[seq])*(n_i_minus_one/n_t)
+    return disassembly
+
+
+def get_disassembly_indexes(objects: dict):
+
     disassembly_indexes = {}
     for object in objects.keys():
         d_object = get_disassembly_index(objects, object)
@@ -67,7 +80,6 @@ def get_path_prob(G, source, target):
         probs = []
         for i in range(len(path) - 1):
             probs.append(get_p(G, path[i], path[i + 1]))
-            print(path[i], path[i + 1], get_p(G, path[i], path[i + 1]))
 
         prob = 1
         for p in probs:
