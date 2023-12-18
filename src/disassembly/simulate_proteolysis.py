@@ -12,11 +12,7 @@ import networkx as nx
 
 
 def find_aa(protein_sequence, target):
-    indices = []
-    for i, amino_acid in enumerate(protein_sequence):
-        if amino_acid == target:
-            indices.append(i)
-    return indices
+    return [i for i, e in enumerate(protein_sequence) if e == target]
 
 def get_probability_for_cut(sequences_dict, enzyme):
     # Probability should be n_cut_sites*copy_number

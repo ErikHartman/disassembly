@@ -76,3 +76,26 @@ I will then apply it to the real wound data.
 
 This could end up as a short 3 figure paper. 2 theoretical and 1 application. Strike the iron while it's hot. The original paper has 4 citation since release (1 month ago).
 
+
+## Experiments v2
+
+To actually do this:
+
+1. We have a peptidome $p_i \in P$
+2. We can sample from this peptidome $\hat{p_i} \sim P$
+3. We want to create a graph $G$ that generates* $\hat{p_i}$. To do this:
+    - draw $\hat{p_i} \sim P$
+    - Generate peptidome from $G$. Calculate KL-divergence $\delta$ between generated peptidome and $\hat{p_i}$
+    - for pair $(u_i, u_j)$ where $u_i \in u_j$ in $\hat{p_i}$. Add $\delta \times u_i$ to $w_{i,j}$ where $w_{i,j}$ is the weight of the edge between the nodes. (Kind of)
+    - Penalize reliance on a single node by $\epsilon \times \sum_i{w_{i,j}}$ where $\epsilon$ is some penalty factor.
+    
+
+
+*To generate a peptidome from $G$. Let $N_T$ be the number of peptides in $\hat{p_i}$. Start from the largest peptide. The peptide is cleaved with probability $w_{i,j}$. Iterate until number of peptides $\geq N_T$.
+
+### With matrices
+$A$ adjacency matrix
+$M$ masking matrix
+
+$AM = G$
+

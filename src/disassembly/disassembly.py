@@ -17,7 +17,6 @@ def get_disassembly(objects : dict):
 
 
 def get_disassembly_indexes(objects: dict):
-
     disassembly_indexes = {}
     for object in objects.keys():
         d_object = get_disassembly_index(objects, object)
