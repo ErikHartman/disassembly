@@ -1,3 +1,28 @@
+"""
+Simulated proteolysis given a sequence and set of enzymes
+
+An enzyme:
+ - has a p1-specificity dict
+ - has an activity
+ - has an abundance
+
+A protein is degraded by an endoprotease (enzyme) or exoprotease 
+with probabilities endo_or_exo_probability (default [0.5, 0.5]).
+
+If degraded by an exoprotease, it is either degraded 1 step at the 
+c or n-terminal.
+
+If degraded by an endoprotease, the probability that it is cut
+by a given enzyme is computed by:
+
+for each amino acid in specificity:
+    n_available_cutsites * enzyme_abundance * specificity * substrate_copy_number
+
+The output is both a sequence_dict, i.e., what we observe at the end
+and a sequence_graph, which has weights for all degradation paths (ground truth).
+
+"""
+
 import networkx as nx
 import numpy as np
 
@@ -38,11 +63,14 @@ class enzyme:
 
 
 class enzyme_set:
-    def __init__(self, enzymes: list, activities: list):
+    def __init__(self, enzymes: list, activities: list, abundances: list):
         total_activity = sum(activities)
         activities = [a / total_activity for a in activities]
         assert len(enzymes) == len(activities)
-        self.enzyme_dict = {e: a for e, a in zip(enzymes, activities)}
+        self.enzyme_dict = {
+            e: (activity, abundance)
+            for e, activity, abundance in zip(enzymes, activities, abundances)
+        }
 
     def get_enzyme(self, name):
         for enzyme in self.enzyme_dict.keys():
@@ -60,10 +88,12 @@ def simulate_proteolysis(
             enzyme({"K": 0.5, "R": 0.5}, "trypsin"),
             enzyme({"V": 0.5, "I": 0.25, "A": 0.15, "T": 0.1}, "elne"),
         ],
-        [3, 2, 3],
+        [3, 2, 3], # activities
+        [1, 1, 3], # abundances
     ),
     n_start: int = 100,
     n_iterations: int = 100,
+    endo_or_exo_probability : list = [0.5, 0.5]
 ) -> (dict, nx.DiGraph):
     sequence_dict = {starting_sequence: n_start}  # a dict with sequence:copy_number
     sequence_graph = (
@@ -72,7 +102,7 @@ def simulate_proteolysis(
     sequence_graph.add_node(starting_sequence, len=len(starting_sequence))
 
     for _ in range(n_iterations):
-        exo_or_endo = np.random.choice(["exo", "endo"], p=[0.5, 0.5])
+        exo_or_endo = np.random.choice(["endo", "exo"], p=endo_or_exo_probability)
         if exo_or_endo == "exo":
             sequences_longer_than_2 = [s for s in sequence_dict.keys() if len(s) > 2]
 
@@ -154,6 +184,7 @@ def simulate_proteolysis(
             )
     return sequence_dict, sequence_graph
 
+
 def find_aminoacids_in_sequence(protein_sequence, target_aminoacid):
     return [i for i, aa in enumerate(protein_sequence) if aa == target_aminoacid]
 
@@ -163,13 +194,13 @@ def get_cut_probability(sequence_dict: dict, enzymes: enzyme_set) -> dict:
     Returns probability for enzyme cut given enzymes and sequences
     """
     freqs = {}
-    for enzyme, activity in enzymes.enzyme_dict.items():
+    for enzyme, (activity, enzyme_abundance) in enzymes.enzyme_dict.items():
         specificities = enzyme.specificity
         freq = 0
         for sequence, copy_number in sequence_dict.items():
             for aminoacid, specificity in specificities.items():
                 n_cut_sites = len(find_aminoacids_in_sequence(sequence, aminoacid))
-                freq += n_cut_sites * specificity * activity * copy_number
+                freq += n_cut_sites * specificity * activity * copy_number * enzyme_abundance
         freqs[enzyme.name] = freq
     probs = {k: v / sum(freqs.values()) for k, v in freqs.items()}
     return probs
