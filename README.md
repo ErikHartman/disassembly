@@ -1,10 +1,11 @@
 # Disassembly
 
-The scope of this project is currently the following:
+The [idea](/paper/idea.md).
 
-1. Simulate proteolysis 
-2. Estimate the weights in the disassembly graph 
-3. Use the disassembly graph to compute disassembly (quantified selection in proteolysis)
+TODO:
 
-Later stages include plugging in real data instead of simulating proteolysis.
-
+1. figure out the filtering problem with proteolysis simulation
+2. make the weight-updating better. 
+    - Take exoprotease into account. 
+    - Set higher probability to ABCD - ABC if ABC and D is present. 
+    - Increase weight ABCD - ABC more if BOTH ABCD and ABC is of high abundance. Right now it only takes abundance of ABC into account.
