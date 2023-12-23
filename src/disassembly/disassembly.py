@@ -16,10 +16,10 @@ def get_disassembly(P : dict, disassembly_indexes : dict):
     return disassembly
 
 
-def get_disassembly_indexes(G : nx.DiGraph, p_generated : dict):
-    disassembly_indexes = {sequence:0 for sequence in p_generated.keys()}
-    for sequence, _ in p_generated.items():
-        longest_object = sorted(list(p_generated.keys()), key=len)[-1]
+def get_disassembly_indexes(G : nx.DiGraph):
+    disassembly_indexes = {sequence:0 for sequence in G.nodes()}
+    for sequence, _ in disassembly_indexes.items():
+        longest_object = sorted(list(disassembly_indexes.keys()), key=len)[-1]
         if sequence == longest_object:
             continue
         paths_from_sequence_to_longest_object = list(
