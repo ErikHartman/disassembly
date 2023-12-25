@@ -101,22 +101,23 @@ def simulate_proteolysis(
     )  # a weighted graph, telling us how degradation has occured
     sequence_graph.add_node(starting_sequence, len=len(starting_sequence))
 
-    for _ in range(n_iterations):
+    for i in range(n_iterations):
+        print(f"\r {i} / {n_iterations}", end="")
         exo_or_endo = np.random.choice(["endo", "exo"], p=endo_or_exo_probability)
         if exo_or_endo == "exo":
-            sequences_longer_than_2 = [s for s in sequence_dict.keys() if len(s) > 2]
+            sequences_longer_than_4 = [s for s in sequence_dict.keys() if len(s) > 4]
 
             sequence_to_chew = np.random.choice(
-                sequences_longer_than_2,
+                sequences_longer_than_4,
                 p=[
                     sequence_dict[v]
-                    / sum([sequence_dict[s] for s in sequences_longer_than_2])
-                    for v in sequences_longer_than_2
+                    / sum([sequence_dict[s] for s in sequences_longer_than_4])
+                    for v in sequences_longer_than_4
                 ],
             )
 
-            n_or_c_term = np.random.choice(["n", "c"], p=[0.5, 0.5])
-            if n_or_c_term == "n":
+            n_or_c_term = np.random.choice(["weight", "c"], p=[0.5, 0.5])
+            if n_or_c_term == "weight":
                 new_sequence = sequence_to_chew[1:]
             else:
                 new_sequence = sequence_to_chew[:-1]
@@ -128,7 +129,8 @@ def simulate_proteolysis(
             )
 
         elif exo_or_endo == "endo":
-            cut_probabilities = get_cut_probability(sequence_dict, enzymes)
+            sequences_longer_than_8 = {s:sequence_dict[s] for s in sequence_dict.keys() if len(s) > 8}
+            cut_probabilities = get_cut_probability(sequences_longer_than_8, enzymes)
             enzyme_that_will_cut = np.random.choice(
                 list(cut_probabilities.keys()), p=list(cut_probabilities.values())
             )
@@ -136,7 +138,7 @@ def simulate_proteolysis(
 
             # Here I say that p(sequence) is prop. to n_cutsites * copy_number. This might not be true. Maybe only copy_number.
             sequence_frequencies = {}
-            for sequence in sequence_dict.keys():
+            for sequence in sequences_longer_than_8.keys():
                 n_cut_sites_in_sequence = 0
                 for aminoacid in e.specificity.keys():
                     n_cut_sites_in_sequence += (
@@ -144,7 +146,7 @@ def simulate_proteolysis(
                         * e.specificity[aminoacid]
                     )
                 sequence_frequencies[sequence] = (
-                    n_cut_sites_in_sequence * sequence_dict[sequence]
+                    n_cut_sites_in_sequence * sequences_longer_than_8[sequence]
                 )
 
             sequence_to_cut = np.random.choice(
@@ -170,18 +172,20 @@ def simulate_proteolysis(
             )
             left = sequence_to_cut[: cutting_index + 1]
             right = sequence_to_cut[cutting_index + 1 :]
-            sequence_dict = update_sequence_dict(
-                sequence_dict, sequence_to_cut, left, endo_or_exo="endo"
-            )
-            sequence_dict = update_sequence_dict(
+            if len(left) > 3 and len(right) > 3:
+                sequence_dict = update_sequence_dict(
+                    sequence_dict, sequence_to_cut, left, endo_or_exo="endo"
+                )
+                sequence_graph = update_sequence_graph(
+                    sequence_graph, sequence_to_cut, left
+                )
+                sequence_dict = update_sequence_dict(
                 sequence_dict, sequence_to_cut, right, endo_or_exo="endo"
-            )
-            sequence_graph = update_sequence_graph(
-                sequence_graph, sequence_to_cut, left
-            )
-            sequence_graph = update_sequence_graph(
-                sequence_graph, sequence_to_cut, right
-            )
+                )
+                sequence_graph = update_sequence_graph(
+                    sequence_graph, sequence_to_cut, right
+                )
+    
     return sequence_dict, sequence_graph
 
 
@@ -210,10 +214,10 @@ def update_sequence_dict(
     sequence_dict: dict, source_sequence, target_sequence, endo_or_exo: str
 ):
     if endo_or_exo == "endo":
-        mult_factor = 0.5  # This is here since we want to call this function twice for endoproteases.
+        sequence_dict[source_sequence] -= .5  # This is here since we want to call this function twice for endoproteases.
     else:
-        mult_factor = 1
-    sequence_dict[source_sequence] -= 1 * mult_factor
+        sequence_dict[source_sequence] -= 1
+
     if sequence_dict[source_sequence] == 0:
         sequence_dict.pop(source_sequence)
     if target_sequence in sequence_dict.keys():
@@ -228,9 +232,9 @@ def update_sequence_graph(sequence_graph: nx.DiGraph, source_sequence, target_se
         sequence_graph.add_node(target_sequence, len=len(target_sequence))
 
     if ~sequence_graph.has_edge(source_sequence, target_sequence):
-        sequence_graph.add_edge(source_sequence, target_sequence, n=1)
+        sequence_graph.add_edge(source_sequence, target_sequence, weight=1)
     else:
-        previous_n = sequence_graph.get_edge_data(source_sequence, target_sequence)["n"]
+        previous_n = sequence_graph.get_edge_data(source_sequence, target_sequence)["weight"]
         new_n = previous_n + 1
-        sequence_graph[source_sequence][target_sequence]["n"] = new_n
+        sequence_graph[source_sequence][target_sequence]["weight"] = new_n
     return sequence_graph
