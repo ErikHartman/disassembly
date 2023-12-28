@@ -67,10 +67,19 @@ class enzyme_set:
         total_activity = sum(activities)
         activities = [a / total_activity for a in activities]
         assert len(enzymes) == len(activities)
+
         self.enzyme_dict = {
             e: (activity, abundance)
             for e, activity, abundance in zip(enzymes, activities, abundances)
         }
+
+        meta_enzyme_dict = {aa:0 for aa in amino_acids.values()}
+        for enzyme, activity, abundance in zip(enzymes, activities, abundances):
+            for amino_acid, value in enzyme.specificity.items():
+                meta_enzyme_dict[amino_acid] += value*activity*abundance
+        
+        self.meta_enzyme = {aa:value/sum(meta_enzyme_dict.values()) for aa, value in meta_enzyme_dict.items()}
+            
 
     def get_enzyme(self, name):
         for enzyme in self.enzyme_dict.keys():
@@ -78,6 +87,7 @@ class enzyme_set:
                 return enzyme
         print("enzyme not in dict")
         return None
+    
 
 
 def simulate_proteolysis(
