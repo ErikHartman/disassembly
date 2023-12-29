@@ -4,11 +4,8 @@ from disassembly.simulate_proteolysis import amino_acids
 
 """
 
-TODO: implement initialization 
-
-0 1 is bad
-
-Maybe uniform? Or random uniform.
+TODO: implement decreasing learning rate on plateu
+by implementing detect_trend()
 
 """
 
@@ -42,18 +39,16 @@ def estimate_weights(
     G.add_nodes_from([(k, {"layer": len(k)}) for k in keys])
     for key1 in keys:
         for key2 in keys:
-            if key2.startswith(key1) or key2.endswith(
+            if key1 == key2:
+                G.add_edge(key2, key1, weight=np.random.uniform(0,0.5))
+            elif key2.startswith(key1) or key2.endswith(
                 key1
             ):  # key 1 = ABC, key 2 = ABCD
-                if key1 == key2:
-                    G.add_edge(
-                        key2, key1, weight=np.random.uniform(0, 1)
-                    ) 
-                else:
-                    G.add_edge(key2, key1, weight=np.random.uniform(0, 1))
+                G.add_edge(key2, key1, weight=np.random.uniform(0.5,1))
 
     for node in G.nodes():
         out_edges = G.out_edges(node, data=True)
+
         total_out = sum([data["weight"] for s, t, data in out_edges])
         for key, target, data in out_edges:
             nx.set_edge_attributes(
@@ -67,7 +62,7 @@ def estimate_weights(
         p_generated = generate_guess(G, keys, N_T)
         generated[i] = p_generated
         kl = KL(P.values(), p_generated.values())
-        print(f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls):.2f}", end="")
+        print(f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-10:]):.2f}", end="")
         G = update_weights(G, kl, P, p_generated, lr, meta_enzyme)
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
@@ -111,33 +106,38 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme):
     for key in P.keys():
         out_edges = G.out_edges(key, data=True)
         for _, target, data in out_edges:
-            if key == target:
-                continue
             source_copy_number = p_hat[key]
             target_copy_number = p_hat[target]
             generated_target_copy_number = p_generated[target]
-            diff = (source_copy_number) * (
-                (target_copy_number) / (generated_target_copy_number + 0.01)
-            )
+            diff = target_copy_number - generated_target_copy_number
 
-            add_to_weight = diff * lr * kl
+            add_to_weight = diff * lr * source_copy_number
 
-            if np.abs(len(key) - len(target)) == 1:
-                add_to_weight *= 2
+            if len(key) - len(target) == 1:
+                add_to_weight *= 10
+                mult_to_new_weight = 1
+
+            elif key == target:
+                mult_to_new_weight = 1
+
             elif key.startswith(target):
                 p1 = key[len(target) - 1]
-                add_to_weight *= meta_enzyme[p1]
+                mult_to_new_weight = 1 if meta_enzyme[p1] > 0 else 0 
+
             else:
                 p1 = key[-len(target) - 1]
-                add_to_weight *= meta_enzyme[p1]
+                mult_to_new_weight = 1 if meta_enzyme[p1] > 0 else 0 
 
-            new_weight = data["weight"]*add_to_weight
-   
+            new_weight = max(0, data["weight"] + add_to_weight)  * mult_to_new_weight
 
             nx.set_edge_attributes(G, {(key, target): {"weight": new_weight}})
+
+        # Normalize
+        out_edges = G.out_edges(key, data=True)
         total_out = sum([data["weight"] for s, t, data in out_edges])
         for key, target, data in out_edges:
             nx.set_edge_attributes(
                 G, {(key, target): {"weight": data["weight"] / total_out}}
             )
+
     return G

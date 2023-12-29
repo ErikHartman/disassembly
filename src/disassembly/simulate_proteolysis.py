@@ -21,6 +21,9 @@ for each amino acid in specificity:
 The output is both a sequence_dict, i.e., what we observe at the end
 and a sequence_graph, which has weights for all degradation paths (ground truth).
 
+
+TODO: Add metaneyzme to make faster
+
 """
 
 import networkx as nx
@@ -140,20 +143,14 @@ def simulate_proteolysis(
 
         elif exo_or_endo == "endo":
             sequences_longer_than_8 = {s:sequence_dict[s] for s in sequence_dict.keys() if len(s) > 8}
-            cut_probabilities = get_cut_probability(sequences_longer_than_8, enzymes)
-            enzyme_that_will_cut = np.random.choice(
-                list(cut_probabilities.keys()), p=list(cut_probabilities.values())
-            )
-            e: enzyme = enzymes.get_enzyme(enzyme_that_will_cut)
-
-            # Here I say that p(sequence) is prop. to n_cutsites * copy_number. This might not be true. Maybe only copy_number.
+    
             sequence_frequencies = {}
             for sequence in sequences_longer_than_8.keys():
                 n_cut_sites_in_sequence = 0
-                for aminoacid in e.specificity.keys():
+                for aminoacid in enzymes.meta_enzyme.keys():
                     n_cut_sites_in_sequence += (
                         len(find_aminoacids_in_sequence(sequence, aminoacid))
-                        * e.specificity[aminoacid]
+                        * enzymes.meta_enzyme[aminoacid]
                     )
                 sequence_frequencies[sequence] = (
                     n_cut_sites_in_sequence * sequences_longer_than_8[sequence]
@@ -168,13 +165,13 @@ def simulate_proteolysis(
             )
 
             index_to_cut = {}
-            for aminoacid in e.specificity.keys():
+            for aminoacid in enzymes.meta_enzyme.keys():
                 indices_for_aminoacid = find_aminoacids_in_sequence(
                     sequence_to_cut, aminoacid
                 )
                 for index in indices_for_aminoacid:
                     if index != len(sequence_to_cut):
-                        index_to_cut[index] = e.specificity[aminoacid]
+                        index_to_cut[index] = enzymes.meta_enzyme[aminoacid]
 
             cutting_index = np.random.choice(
                 list(index_to_cut.keys()),
@@ -196,11 +193,16 @@ def simulate_proteolysis(
                     sequence_graph, sequence_to_cut, right
                 )
     
+    for node in sequence_graph.nodes():
+        sequence_graph.add_edge(node, node, weight=sequence_dict[node])
     return sequence_dict, sequence_graph
 
 
 def find_aminoacids_in_sequence(protein_sequence, target_aminoacid):
-    return [i for i, aa in enumerate(protein_sequence) if aa == target_aminoacid]
+    indexes = [i for i, aa in enumerate(protein_sequence) if aa == target_aminoacid]
+    if len(protein_sequence) - 1 in indexes:
+        indexes.remove(len(protein_sequence)-1)
+    return indexes
 
 
 def get_cut_probability(sequence_dict: dict, enzymes: enzyme_set) -> dict:
@@ -223,10 +225,11 @@ def get_cut_probability(sequence_dict: dict, enzymes: enzyme_set) -> dict:
 def update_sequence_dict(
     sequence_dict: dict, source_sequence, target_sequence, endo_or_exo: str
 ):
-    if endo_or_exo == "endo":
-        sequence_dict[source_sequence] -= .5  # This is here since we want to call this function twice for endoproteases.
-    else:
-        sequence_dict[source_sequence] -= 1
+    # Removed this for assumption-reasons.
+   # if endo_or_exo == "endo":
+   #     sequence_dict[source_sequence] -= .5  # This is here since we want to call this function twice for endoproteases.
+   # else:
+   #     sequence_dict[source_sequence] -= 1
 
     if sequence_dict[source_sequence] == 0:
         sequence_dict.pop(source_sequence)
