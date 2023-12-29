@@ -31,20 +31,21 @@ def estimate_weights(
     },
     lr: float = 0.1,
     n_iterations: int = 100,
+    N_T: int = 1000
 ):
     keys = list(P.keys())
     values = list(P.values())
-    N_T = int(sum(values))
+    P = {k: N_T*v/sum(values) for k,v in zip(keys, values)}
     G = nx.DiGraph()
     G.add_nodes_from([(k, {"layer": len(k)}) for k in keys])
     for key1 in keys:
         for key2 in keys:
             if key1 == key2:
-                G.add_edge(key2, key1, weight=np.random.uniform(0,0.5))
+                G.add_edge(key2, key1, weight=1)
             elif key2.startswith(key1) or key2.endswith(
                 key1
             ):  # key 1 = ABC, key 2 = ABCD
-                G.add_edge(key2, key1, weight=np.random.uniform(0.5,1))
+                G.add_edge(key2, key1, weight=0)
 
     for node in G.nodes():
         out_edges = G.out_edges(node, data=True)
@@ -58,11 +59,18 @@ def estimate_weights(
     generated = {}
     kls = []
     weights = np.zeros((len(G.edges()), n_iterations), dtype=float)
+    lr_cooldown = 50
     for i in range(n_iterations):
+        lr_cooldown -= 1
         p_generated = generate_guess(G, keys, N_T)
         generated[i] = p_generated
         kl = KL(P.values(), p_generated.values())
-        print(f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-10:]):.2f}", end="")
+        trend = get_trend(kls[-50:])
+        print(f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-25:]):.2f} | {trend}", end="")
+        if lr_cooldown <= 0 and trend == "Increasing" and lr > .0001:
+            lr_cooldown = 100
+            lr = lr/2
+            print(f"\nLearning rate decreased to {lr}")
         G = update_weights(G, kl, P, p_generated, lr, meta_enzyme)
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
@@ -141,3 +149,21 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme):
             )
 
     return G
+
+
+def get_trend(data):
+    # Calculate the first-order differences
+    diff = np.diff(data)
+
+    mean_diff = np.mean(diff)
+    std_diff = np.std(diff)
+    trend_threshold = 1e-3
+    stochastic_threshold = 1
+    if mean_diff > trend_threshold:
+        return "Increasing"
+    elif mean_diff < -trend_threshold:
+        return "Decreasing"
+    elif std_diff > stochastic_threshold:
+        return "Stochastic"
+    else:
+        return "Plateau"
