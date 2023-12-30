@@ -2,13 +2,6 @@ import networkx as nx
 import numpy as np
 from disassembly.simulate_proteolysis import amino_acids
 
-"""
-
-TODO: implement decreasing learning rate on plateu
-by implementing detect_trend()
-
-"""
-
 
 def normalize_dict(d):
     s = sum(d.values())
@@ -29,7 +22,7 @@ def estimate_weights(
     meta_enzyme: dict = {
         amino_acid: 1 / len(amino_acids) for amino_acid in amino_acids.values()
     },
-    endo_or_exo_probability : list = [0.5, 0.5],
+    endo_or_exo_probability: list = [0.5, 0.5],
     lr: float = 0.1,
     n_iterations: int = 100,
     N_T: int = 1000,
@@ -75,7 +68,9 @@ def estimate_weights(
             lr_cooldown = 100
             lr = lr / 2
             print(f"\nLearning rate decreased to {lr}")
-        G = update_weights(G, kl, P, p_generated, lr, meta_enzyme, endo_or_exo_probability)
+        G = update_weights(
+            G, kl, P, p_generated, lr, meta_enzyme, endo_or_exo_probability
+        )
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
 
@@ -156,9 +151,7 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, endo_or_exo_probabili
 
 
 def get_trend(data):
-    # Calculate the first-order differences
     diff = np.diff(data)
-
     mean_diff = np.mean(diff)
     std_diff = np.std(diff)
     trend_threshold = 1e-3

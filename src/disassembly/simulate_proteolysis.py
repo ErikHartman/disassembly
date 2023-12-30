@@ -22,8 +22,6 @@ The output is both a sequence_dict, i.e., what we observe at the end
 and a sequence_graph, which has weights for all degradation paths (ground truth).
 
 
-TODO: Add metaneyzme to make faster
-
 """
 
 import networkx as nx
@@ -76,13 +74,15 @@ class enzyme_set:
             for e, activity, abundance in zip(enzymes, activities, abundances)
         }
 
-        meta_enzyme_dict = {aa:0 for aa in amino_acids.values()}
+        meta_enzyme_dict = {aa: 0 for aa in amino_acids.values()}
         for enzyme, activity, abundance in zip(enzymes, activities, abundances):
             for amino_acid, value in enzyme.specificity.items():
-                meta_enzyme_dict[amino_acid] += value*activity*abundance
-        
-        self.meta_enzyme = {aa:value/sum(meta_enzyme_dict.values()) for aa, value in meta_enzyme_dict.items()}
-            
+                meta_enzyme_dict[amino_acid] += value * activity * abundance
+
+        self.meta_enzyme = {
+            aa: value / sum(meta_enzyme_dict.values())
+            for aa, value in meta_enzyme_dict.items()
+        }
 
     def get_enzyme(self, name):
         for enzyme in self.enzyme_dict.keys():
@@ -90,7 +90,6 @@ class enzyme_set:
                 return enzyme
         print("enzyme not in dict")
         return None
-    
 
 
 def simulate_proteolysis(
@@ -101,12 +100,12 @@ def simulate_proteolysis(
             enzyme({"K": 0.5, "R": 0.5}, "trypsin"),
             enzyme({"V": 0.5, "I": 0.25, "A": 0.15, "T": 0.1}, "elne"),
         ],
-        [3, 2, 3], # activities
-        [1, 1, 3], # abundances
+        [3, 2, 3],  # activities
+        [1, 1, 3],  # abundances
     ),
     n_start: int = 100,
     n_iterations: int = 100,
-    endo_or_exo_probability : list = [0.5, 0.5]
+    endo_or_exo_probability: list = [0.5, 0.5],
 ) -> (dict, nx.DiGraph):
     sequence_dict = {starting_sequence: n_start}  # a dict with sequence:copy_number
     sequence_graph = (
@@ -142,8 +141,10 @@ def simulate_proteolysis(
             )
 
         elif exo_or_endo == "endo":
-            sequences_longer_than_8 = {s:sequence_dict[s] for s in sequence_dict.keys() if len(s) > 8}
-    
+            sequences_longer_than_8 = {
+                s: sequence_dict[s] for s in sequence_dict.keys() if len(s) > 8
+            }
+
             sequence_frequencies = {}
             for sequence in sequences_longer_than_8.keys():
                 n_cut_sites_in_sequence = 0
@@ -187,12 +188,12 @@ def simulate_proteolysis(
                     sequence_graph, sequence_to_cut, left
                 )
                 sequence_dict = update_sequence_dict(
-                sequence_dict, sequence_to_cut, right, endo_or_exo="endo"
+                    sequence_dict, sequence_to_cut, right, endo_or_exo="endo"
                 )
                 sequence_graph = update_sequence_graph(
                     sequence_graph, sequence_to_cut, right
                 )
-    
+
     for node in sequence_graph.nodes():
         sequence_graph.add_edge(node, node, weight=sequence_dict[node])
     return sequence_dict, sequence_graph
@@ -201,7 +202,7 @@ def simulate_proteolysis(
 def find_aminoacids_in_sequence(protein_sequence, target_aminoacid):
     indexes = [i for i, aa in enumerate(protein_sequence) if aa == target_aminoacid]
     if len(protein_sequence) - 1 in indexes:
-        indexes.remove(len(protein_sequence)-1)
+        indexes.remove(len(protein_sequence) - 1)
     return indexes
 
 
@@ -216,7 +217,13 @@ def get_cut_probability(sequence_dict: dict, enzymes: enzyme_set) -> dict:
         for sequence, copy_number in sequence_dict.items():
             for aminoacid, specificity in specificities.items():
                 n_cut_sites = len(find_aminoacids_in_sequence(sequence, aminoacid))
-                freq += n_cut_sites * specificity * activity * copy_number * enzyme_abundance
+                freq += (
+                    n_cut_sites
+                    * specificity
+                    * activity
+                    * copy_number
+                    * enzyme_abundance
+                )
         freqs[enzyme.name] = freq
     probs = {k: v / sum(freqs.values()) for k, v in freqs.items()}
     return probs
@@ -226,10 +233,10 @@ def update_sequence_dict(
     sequence_dict: dict, source_sequence, target_sequence, endo_or_exo: str
 ):
     # Removed this for assumption-reasons.
-   # if endo_or_exo == "endo":
-   #     sequence_dict[source_sequence] -= .5  # This is here since we want to call this function twice for endoproteases.
-   # else:
-   #     sequence_dict[source_sequence] -= 1
+    # if endo_or_exo == "endo":
+    #     sequence_dict[source_sequence] -= .5  # This is here since we want to call this function twice for endoproteases.
+    # else:
+    #     sequence_dict[source_sequence] -= 1
 
     if sequence_dict[source_sequence] == 0:
         sequence_dict.pop(source_sequence)
@@ -247,7 +254,9 @@ def update_sequence_graph(sequence_graph: nx.DiGraph, source_sequence, target_se
     if ~sequence_graph.has_edge(source_sequence, target_sequence):
         sequence_graph.add_edge(source_sequence, target_sequence, weight=1)
     else:
-        previous_n = sequence_graph.get_edge_data(source_sequence, target_sequence)["weight"]
+        previous_n = sequence_graph.get_edge_data(source_sequence, target_sequence)[
+            "weight"
+        ]
         new_n = previous_n + 1
         sequence_graph[source_sequence][target_sequence]["weight"] = new_n
     return sequence_graph
