@@ -29,13 +29,14 @@ def estimate_weights(
     meta_enzyme: dict = {
         amino_acid: 1 / len(amino_acids) for amino_acid in amino_acids.values()
     },
+    endo_or_exo_probability : list = [0.5, 0.5],
     lr: float = 0.1,
     n_iterations: int = 100,
-    N_T: int = 1000
+    N_T: int = 1000,
 ):
     keys = list(P.keys())
     values = list(P.values())
-    P = {k: N_T*v/sum(values) for k,v in zip(keys, values)}
+    P = {k: N_T * v / sum(values) for k, v in zip(keys, values)}
     G = nx.DiGraph()
     G.add_nodes_from([(k, {"layer": len(k)}) for k in keys])
     for key1 in keys:
@@ -66,12 +67,15 @@ def estimate_weights(
         generated[i] = p_generated
         kl = KL(P.values(), p_generated.values())
         trend = get_trend(kls[-50:])
-        print(f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-25:]):.2f} | {trend}", end="")
-        if lr_cooldown <= 0 and trend == "Increasing" and lr > .0001:
+        print(
+            f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-25:]):.2f} | {trend}",
+            end="",
+        )
+        if lr_cooldown <= 0 and trend == "Increasing" and lr > 0.0001:
             lr_cooldown = 100
-            lr = lr/2
+            lr = lr / 2
             print(f"\nLearning rate decreased to {lr}")
-        G = update_weights(G, kl, P, p_generated, lr, meta_enzyme)
+        G = update_weights(G, kl, P, p_generated, lr, meta_enzyme, endo_or_exo_probability)
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
 
@@ -108,7 +112,7 @@ def generate_guess(G, keys, N_T):
     return p_generated
 
 
-def update_weights(G, kl, P, p_generated, lr, meta_enzyme):
+def update_weights(G, kl, P, p_generated, lr, meta_enzyme, endo_or_exo_probability):
     p_hat = normalize_dict(P)
     p_generated = normalize_dict(p_generated)
     for key in P.keys():
@@ -122,7 +126,7 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme):
             add_to_weight = diff * lr * source_copy_number
 
             if len(key) - len(target) == 1:
-                add_to_weight *= 10
+                add_to_weight *= endo_or_exo_probability[1] / endo_or_exo_probability[0]
                 mult_to_new_weight = 1
 
             elif key == target:
@@ -130,13 +134,13 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme):
 
             elif key.startswith(target):
                 p1 = key[len(target) - 1]
-                mult_to_new_weight = 1 if meta_enzyme[p1] > 0 else 0 
+                mult_to_new_weight = 1 if meta_enzyme[p1] > 0 else 0
 
             else:
                 p1 = key[-len(target) - 1]
-                mult_to_new_weight = 1 if meta_enzyme[p1] > 0 else 0 
+                mult_to_new_weight = 1 if meta_enzyme[p1] > 0 else 0
 
-            new_weight = max(0, data["weight"] + add_to_weight)  * mult_to_new_weight
+            new_weight = max(0, data["weight"] + add_to_weight) * mult_to_new_weight
 
             nx.set_edge_attributes(G, {(key, target): {"weight": new_weight}})
 
