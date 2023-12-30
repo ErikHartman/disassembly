@@ -22,7 +22,7 @@ def estimate_weights(
     meta_enzyme: dict = {
         amino_acid: 1 / len(amino_acids) for amino_acid in amino_acids.values()
     },
-    endo_or_exo_probability: list = [0.5, 0.5],
+    exo_mult_factor: float = 10,
     lr: float = 0.1,
     n_iterations: int = 100,
     N_T: int = 1000,
@@ -69,7 +69,7 @@ def estimate_weights(
             lr = lr / 2
             print(f"\nLearning rate decreased to {lr}")
         G = update_weights(
-            G, kl, P, p_generated, lr, meta_enzyme, endo_or_exo_probability
+            G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor
         )
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
@@ -107,7 +107,7 @@ def generate_guess(G, keys, N_T):
     return p_generated
 
 
-def update_weights(G, kl, P, p_generated, lr, meta_enzyme, endo_or_exo_probability):
+def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor):
     p_hat = normalize_dict(P)
     p_generated = normalize_dict(p_generated)
     for key in P.keys():
@@ -121,7 +121,7 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, endo_or_exo_probabili
             add_to_weight = diff * lr * source_copy_number
 
             if len(key) - len(target) == 1:
-                add_to_weight *= endo_or_exo_probability[1] / endo_or_exo_probability[0]
+                add_to_weight *= exo_mult_factor
                 mult_to_new_weight = 1
 
             elif key == target:
