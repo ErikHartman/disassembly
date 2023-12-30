@@ -37,7 +37,7 @@ def get_disassembly_indexes(G: nx.DiGraph):
             continue
         paths_from_sequence_to_longest_object = list(
             nx.all_simple_paths(G.reverse(), sequence, longest_object)
-        )
+        ) # This is slow as hell for many paths
 
         print(
             f"\r {i} / {len(disassembly_indexes.keys())} | checking {len(paths_from_sequence_to_longest_object)} path",
