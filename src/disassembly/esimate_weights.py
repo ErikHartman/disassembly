@@ -1,3 +1,10 @@
+"""
+Functions for estimating weights in disassembly graph.
+
+Main function is esimate_weights().
+
+"""
+
 import networkx as nx
 import numpy as np
 from disassembly.simulate_proteolysis import amino_acids
