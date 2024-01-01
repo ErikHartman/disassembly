@@ -19,9 +19,11 @@ def get_disassembly(P: dict, disassembly_indexes: dict):
     return disassembly
 
 
-def get_disassembly_indexes(G: nx.DiGraph):
+def get_disassembly_indexes(G: nx.DiGraph, min_weight : float = 0.01):
     """
-    The input is a weighted graph 
+    The input is a weighted graph and a min_weight threshold.
+
+    Edges with weight below min weight are removed.
 
     sequence -w-> subsequence
 
@@ -40,6 +42,15 @@ def get_disassembly_indexes(G: nx.DiGraph):
             nx.set_edge_attributes(
                 G, {(key, target): {"weight": data["weight"] / total_in}}
             )
+
+    # Remove very improbable edges
+    no_0_G = nx.DiGraph()
+    for source, target, data in G.edges(data=True):
+        if data["weight"] > min_weight:
+            no_0_G.add_edge(source, target, **data)
+    print(f"Removing low prob. (<{min_weight}) edges. Before: {G.number_of_edges()} | after: {no_0_G.number_of_edges()}")
+    G = no_0_G
+    
     disassembly_indexes = {sequence: 0 for sequence in G.nodes()}
     for i, (sequence, _) in enumerate(disassembly_indexes.items()):
         longest_object = sorted(list(disassembly_indexes.keys()), key=len)[-1]
@@ -50,7 +61,7 @@ def get_disassembly_indexes(G: nx.DiGraph):
         )  # This is slow as hell for many paths
 
         print(
-            f"\r {i} / {len(disassembly_indexes.keys())} | checking {len(paths_from_sequence_to_longest_object)} path",
+            f"\r {i} / {len(disassembly_indexes.keys())} | checking {len(paths_from_sequence_to_longest_object)} paths",
             end="",
         )
 
@@ -59,6 +70,9 @@ def get_disassembly_indexes(G: nx.DiGraph):
             prob = 1
             length = len(path) - 1
             for i in range(len(path) - 1):
+                if prob < 0.0001:
+                    prob = 0
+                    break
                 prob *= G.get_edge_data(path[i + 1], path[i])["weight"] / sum(
                     [data["weight"] for _, _, data in G.in_edges(path[i], data=True)]
                 )

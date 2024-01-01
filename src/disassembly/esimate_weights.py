@@ -113,15 +113,16 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor):
     for key in P.keys():
         out_edges = G.out_edges(key, data=True)
         for _, target, data in out_edges:
-            source_copy_number = p_hat[key]
+            #source_copy_number = p_hat[key]
             target_copy_number = p_hat[target]
             generated_target_copy_number = p_generated[target]
             diff = target_copy_number - generated_target_copy_number
 
-            add_to_weight = diff * lr * source_copy_number
+            add_to_weight = diff * lr
 
             if len(key) - len(target) == 1:
-                add_to_weight *= exo_mult_factor
+                if diff > 0:
+                    add_to_weight *= exo_mult_factor # idea to increase weight more if exoprotease
                 mult_to_new_weight = 1
 
             elif key == target:
