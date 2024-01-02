@@ -21,6 +21,7 @@ for each amino acid in specificity:
 The output is both a sequence_dict, i.e., what we observe at the end
 and a sequence_graph, which has weights for all degradation paths (ground truth).
 
+TODO: Idea to only cut peptide if it "fits" real data. 
 
 """
 
@@ -103,15 +104,18 @@ def simulate_proteolysis(
         [3, 2, 3],  # activities
         [1, 1, 3],  # abundances
     ),
-    n_start: int = 100,
+    n_start: int = 10,
     n_iterations: int = 100,
     endo_or_exo_probability: list = [0.5, 0.5],
 ) -> (dict, nx.DiGraph):
-    sequence_dict = {starting_sequence: n_start}  # a dict with sequence:copy_number
+    
+    sequence_dict = {starting_sequence : n_start}
+
     sequence_graph = (
         nx.DiGraph()
     )  # a weighted graph, telling us how degradation has occured
-    sequence_graph.add_node(starting_sequence, len=len(starting_sequence))
+    for sequence in sequence_dict.keys():
+        sequence_graph.add_node(sequence, len=len(sequence))  # Adding nodes
 
     for i in range(n_iterations):
         print(f"\r {i} / {n_iterations}", end="")
@@ -141,12 +145,12 @@ def simulate_proteolysis(
             )
 
         elif exo_or_endo == "endo":
-            sequences_longer_than_8 = {
-                s: sequence_dict[s] for s in sequence_dict.keys() if len(s) > 8
+            sequences_longer_than_4 = {
+                s: sequence_dict[s] for s in sequence_dict.keys() if len(s) > 4
             }
 
             sequence_frequencies = {}
-            for sequence in sequences_longer_than_8.keys():
+            for sequence in sequences_longer_than_4.keys():
                 n_cut_sites_in_sequence = 0
                 for aminoacid in enzymes.meta_enzyme.keys():
                     n_cut_sites_in_sequence += (
@@ -154,7 +158,7 @@ def simulate_proteolysis(
                         * enzymes.meta_enzyme[aminoacid]
                     )
                 sequence_frequencies[sequence] = (
-                    n_cut_sites_in_sequence * sequences_longer_than_8[sequence]
+                    n_cut_sites_in_sequence * sequences_longer_than_4[sequence]
                 )
 
             sequence_to_cut = np.random.choice(
@@ -180,6 +184,7 @@ def simulate_proteolysis(
             )
             left = sequence_to_cut[: cutting_index + 1]
             right = sequence_to_cut[cutting_index + 1 :]
+
             if len(left) > 3 and len(right) > 3:
                 sequence_dict = update_sequence_dict(
                     sequence_dict, sequence_to_cut, left, endo_or_exo="endo"
@@ -187,6 +192,7 @@ def simulate_proteolysis(
                 sequence_graph = update_sequence_graph(
                     sequence_graph, sequence_to_cut, left
                 )
+
                 sequence_dict = update_sequence_dict(
                     sequence_dict, sequence_to_cut, right, endo_or_exo="endo"
                 )
