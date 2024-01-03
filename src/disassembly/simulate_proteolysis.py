@@ -105,7 +105,7 @@ def simulate_proteolysis(
         [1, 1, 3],  # abundances
     ),
     n_start: int = 10,
-    n_iterations: int = 100,
+    n_generate: int = 100,
     endo_or_exo_probability: list = [0.5, 0.5],
 ) -> (dict, nx.DiGraph):
     
@@ -117,8 +117,9 @@ def simulate_proteolysis(
     for sequence in sequence_dict.keys():
         sequence_graph.add_node(sequence, len=len(sequence))  # Adding nodes
 
-    for i in range(n_iterations):
-        print(f"\r {i} / {n_iterations}", end="")
+    n_generated_peptides = 0
+    while n_generated_peptides < n_generate:
+        print(f"\r {n_generated_peptides} / {n_generate}", end="")
         exo_or_endo = np.random.choice(["endo", "exo"], p=endo_or_exo_probability)
         if exo_or_endo == "exo":
             sequences_longer_than_4 = [s for s in sequence_dict.keys() if len(s) > 4]
@@ -131,18 +132,19 @@ def simulate_proteolysis(
                     for v in sequences_longer_than_4
                 ],
             )
-
-            n_or_c_term = np.random.choice(["weight", "c"], p=[0.5, 0.5])
-            if n_or_c_term == "weight":
-                new_sequence = sequence_to_chew[1:]
-            else:
-                new_sequence = sequence_to_chew[:-1]
-            sequence_dict = update_sequence_dict(
-                sequence_dict, sequence_to_chew, new_sequence, endo_or_exo="exo"
-            )
-            sequence_graph = update_sequence_graph(
-                sequence_graph, sequence_to_chew, new_sequence
-            )
+            if accept_addition(len(sequence_to_chew)- 1):
+                n_generated_peptides += 1
+                n_or_c_term = np.random.choice(["n", "c"], p=[0.5, 0.5])
+                if n_or_c_term == "n":
+                    new_sequence = sequence_to_chew[1:]
+                else:
+                    new_sequence = sequence_to_chew[:-1]
+                sequence_dict = update_sequence_dict(
+                    sequence_dict, sequence_to_chew, new_sequence, endo_or_exo="exo"
+                )
+                sequence_graph = update_sequence_graph(
+                    sequence_graph, sequence_to_chew, new_sequence
+                )
 
         elif exo_or_endo == "endo":
             sequences_longer_than_4 = {
@@ -186,22 +188,26 @@ def simulate_proteolysis(
             right = sequence_to_cut[cutting_index + 1 :]
 
             if len(left) > 3 and len(right) > 3:
-                sequence_dict = update_sequence_dict(
-                    sequence_dict, sequence_to_cut, left, endo_or_exo="endo"
-                )
-                sequence_graph = update_sequence_graph(
-                    sequence_graph, sequence_to_cut, left
-                )
-
-                sequence_dict = update_sequence_dict(
-                    sequence_dict, sequence_to_cut, right, endo_or_exo="endo"
-                )
-                sequence_graph = update_sequence_graph(
-                    sequence_graph, sequence_to_cut, right
-                )
+                if accept_addition(len(left)- 1):
+                    n_generated_peptides += 1
+                    sequence_dict = update_sequence_dict(
+                        sequence_dict, sequence_to_cut, left, endo_or_exo="endo"
+                    )
+                    sequence_graph = update_sequence_graph(
+                        sequence_graph, sequence_to_cut, left
+                    )
+                if accept_addition(len(left)- 1):
+                    n_generated_peptides += 1
+                    sequence_dict = update_sequence_dict(
+                        sequence_dict, sequence_to_cut, right, endo_or_exo="endo"
+                    )
+                    sequence_graph = update_sequence_graph(
+                        sequence_graph, sequence_to_cut, right
+                    )
 
     for node in sequence_graph.nodes():
         sequence_graph.add_edge(node, node, weight=sequence_dict[node])
+    print(f"\n{len(sequence_dict)} unique peptides. {n_generate + n_start} total")
     return sequence_dict, sequence_graph
 
 
@@ -266,3 +272,15 @@ def update_sequence_graph(sequence_graph: nx.DiGraph, source_sequence, target_se
         new_n = previous_n + 1
         sequence_graph[source_sequence][target_sequence]["weight"] = new_n
     return sequence_graph
+
+from scipy.stats import gamma
+def accept_addition(length):
+    a, shape, scale = 5.5, 8, 4.5 
+    g = gamma(a=a, scale=scale, loc=shape)
+    x = np.linspace(0, 100)
+    s = g.pdf(x)
+    a = g.pdf(length) / max(s)
+    u = np.random.uniform(0, 1)
+    if u < a:
+        return True
+    return False
