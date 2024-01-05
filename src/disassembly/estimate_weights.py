@@ -15,13 +15,21 @@ def normalize_dict(d):
     return {k: v / s for k, v in d.items()}
 
 
-def KL(a, b):
-    a = np.asarray(list(a))
-    b = np.asarray(list(b))
-    a = 1e-8 + a / np.sum(a)
-    b = 1e-8 + b / np.sum(b)
+def KL(q, p):
+    q = np.asarray(list(q))
+    p = np.asarray(list(p))
+    q = 1e-8 + q / np.sum(q)
+    p = 1e-8 + p / np.sum(p)
 
-    return np.sum(np.where(a != 0, a * np.log(a / b), 0))
+    return np.sum(np.where(q != 0, q * np.log(q / p), 0))
+
+
+def KL_gradient(q, p):
+    q = np.asarray(list(q))
+    p = np.asarray(list(p))
+    q = 1e-8 + q / np.sum(q)
+    p = 1e-8 + p / np.sum(p)
+    return np.sum(np.where(q != 0, np.log(q / p) + 1, 0))
 
 
 def estimate_weights(
@@ -34,6 +42,7 @@ def estimate_weights(
     n_iterations: int = 100,
     N_T: int = 1000,
     alpha: float = 0.001,
+    min_iterations: int = 100,
 ):
     keys = list(P.keys())
     values = list(P.values())
@@ -47,7 +56,7 @@ def estimate_weights(
             elif key2.startswith(key1) or key2.endswith(
                 key1
             ):  # key 1 = ABC, key 2 = ABCD
-                G.add_edge(key2, key1, weight=np.random.uniform(0,1))
+                G.add_edge(key2, key1, weight=np.random.uniform(0, 1))
 
     for node in G.nodes():
         out_edges = G.out_edges(node, data=True)
@@ -116,18 +125,17 @@ def generate_guess(G, keys, N_T):
 
 
 def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alpha):
-    p_hat = normalize_dict(P)
-    p_generated = normalize_dict(p_generated)
+    P = normalize_dict(P)  # observerade fördelningen
+    p_generated = normalize_dict(p_generated)  # gissningen
     for key in P.keys():
         out_edges = G.out_edges(key, data=True)
-
         for _, target, data in out_edges:
-            source_copy_number = p_hat[key]
-            target_copy_number = p_hat[target]
+            source_copy_number = P[key]
+            target_copy_number = P[target]
             generated_target_copy_number = p_generated[target]
             diff = target_copy_number - generated_target_copy_number
 
-            add_to_weight = diff * lr 
+            add_to_weight = diff * lr
 
             if len(key) - len(target) == 1:
                 add_to_weight *= exo_mult_factor
@@ -138,16 +146,16 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
 
             elif key.startswith(target):
                 p1 = key[len(target) - 1]
-                mult_to_new_weight = meta_enzyme[p1] 
+                mult_to_new_weight = meta_enzyme[p1]
 
             else:
                 p1 = key[-len(target) - 1]
-                mult_to_new_weight =  meta_enzyme[p1] 
+                mult_to_new_weight = meta_enzyme[p1]
 
-            new_weight = (data["weight"] + add_to_weight) 
-            new_weight += (np.abs(1/len(out_edges) - new_weight) * alpha * lr) # force to move away from uniform
-            new_weight = new_weight + new_weight*alpha*mult_to_new_weight # increase weight for high p1
-            new_weight = max(0, min(1, new_weight))
+            new_weight = data["weight"] + add_to_weight
+            # new_weight += (np.abs(1/len(out_edges) - new_weight) *  lr) # force to move away from uniform
+            # new_weight = new_weight + new_weight*mult_to_new_weight*lr # increase weight for high p1
+            new_weight = max(0, new_weight)
 
             nx.set_edge_attributes(G, {(key, target): {"weight": new_weight}})
 
