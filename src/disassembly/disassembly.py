@@ -3,17 +3,7 @@ import math
 
 """
 
-TODO: MC approximation of DI
-
-
-Remove self loops.
-
-release N particles
-
-for the traversal of each node. 
-
-Note how long it took to get there.
-The end is the average length
+TODO: Updaate MC approximation to start in terminal nodes
 
 """
 
@@ -115,19 +105,25 @@ def get_disassembly_indexes_mc(G: nx.DiGraph, N_particles : int):
     """
     # Normalize node outputs to make them into probabilites
     G.remove_edges_from(nx.selfloop_edges(G))
+    terminal_nodes = [node for node in G.nodes() if G.out_degree(node) == 0]
+    print(terminal_nodes)
+    G = G.reverse()
     
     disassembly_indexes = {sequence: [] for sequence in G.nodes()}
-    starting_sequence = sorted(list(disassembly_indexes.keys()), key=len)[-1]
-    sequence = starting_sequence
+    
     # release particle
-    steps = 0
+    
     for _ in range(N_particles):
+        starting_sequence = np.random.choice(terminal_nodes)
+        sequence = starting_sequence
+        path = []
+        steps = 0
         while True:
-            disassembly_indexes[sequence].append(steps)
+            path.append(sequence)
             out_edges = G.out_edges(sequence, data=True)
             if len(out_edges) == 0:
-                sequence = starting_sequence
-                steps = 0
+                for i, node in enumerate(path):
+                    disassembly_indexes[node].append(steps-i)
                 break
             weights = np.array([weight["weight"] for _, _, weight in out_edges])
             sum_weights = sum(weights)
@@ -135,7 +131,8 @@ def get_disassembly_indexes_mc(G: nx.DiGraph, N_particles : int):
             targets = [target for _, target, _ in out_edges]
             next_node = np.random.choice(targets, p=weights)
             sequence = next_node
-            steps = steps + 1
+            steps += 1
+
         
     return disassembly_indexes
 
