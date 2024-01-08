@@ -42,7 +42,6 @@ def estimate_weights(
     n_iterations: int = 100,
     N_T: int = 1000,
     alpha: float = 0.001,
-    min_iterations: int = 100,
 ):
     keys = list(P.keys())
     values = list(P.values())
@@ -139,10 +138,10 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
 
             if len(key) - len(target) == 1:
                 add_to_weight *= exo_mult_factor
-                mult_to_new_weight = 1
+                mult_to_new_weight = 0
 
             elif key == target:
-                mult_to_new_weight = 1
+                mult_to_new_weight = 0
 
             elif key.startswith(target):
                 p1 = key[len(target) - 1]
@@ -153,8 +152,8 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
                 mult_to_new_weight = meta_enzyme[p1]
 
             new_weight = data["weight"] + add_to_weight
-            # new_weight += (np.abs(1/len(out_edges) - new_weight) *  lr) # force to move away from uniform
-            # new_weight = new_weight + new_weight*mult_to_new_weight*lr # increase weight for high p1
+            #new_weight += (np.abs(1/len(out_edges) - new_weight) *  lr) # force to move away from uniform
+            #new_weight = new_weight + (new_weight*mult_to_new_weight*lr) # increase weight for high p1
             new_weight = max(0, new_weight)
 
             nx.set_edge_attributes(G, {(key, target): {"weight": new_weight}})
@@ -163,10 +162,17 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
         out_edges = G.out_edges(key, data=True)
         total_out = sum([data["weight"] for s, t, data in out_edges])
 
-        for key, target, data in out_edges:
-            nx.set_edge_attributes(
-                G, {(key, target): {"weight": data["weight"] / total_out}}
-            )
+        if total_out != 0:
+            for key, target, data in out_edges:
+                nx.set_edge_attributes(
+                    G, {(key, target): {"weight": data["weight"] / total_out}}
+                )
+        else:
+            weights = np.random.uniform(0,1,len(out_edges))
+            total_out = sum(weights)
+            for edge, weight in zip(out_edges, weights):
+                key, target, _  = edge
+                nx.set_edge_attributes(G, {(key, target) : {"weight": weight/total_out}})
 
     return G
 

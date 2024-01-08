@@ -21,7 +21,6 @@ for each amino acid in specificity:
 The output is both a sequence_dict, i.e., what we observe at the end
 and a sequence_graph, which has weights for all degradation paths (ground truth).
 
-TODO: Idea to only cut peptide if it "fits" real data. 
 
 """
 
@@ -180,30 +179,32 @@ def simulate_proteolysis(
                     if index != len(sequence_to_cut):
                         index_to_cut[index] = enzymes.meta_enzyme[aminoacid]
 
-            cutting_index = np.random.choice(
+            # Perform two cuts
+            cutting_index1 = int(np.random.choice(
                 list(index_to_cut.keys()),
                 p=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
-            )
-            left = sequence_to_cut[: cutting_index + 1]
-            right = sequence_to_cut[cutting_index + 1 :]
+            ))
+            cutting_index2 = int(np.random.choice(
+                list(index_to_cut.keys()),
+                p=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
+            ))
 
-            if len(left) > 3 and len(right) > 3:
-                if accept_addition(len(left)- 1):
+  
+
+            left = sequence_to_cut[: min(cutting_index1, cutting_index2) + 1]
+            middle=  sequence_to_cut[min(cutting_index1, cutting_index2):max(cutting_index1, cutting_index2)]
+            right = sequence_to_cut[max(cutting_index1, cutting_index2) + 1 :]
+
+            for sequence in [left, middle, right]:
+                if accept_addition(len(sequence)- 1):
                     n_generated_peptides += 1
                     sequence_dict = update_sequence_dict(
-                        sequence_dict, sequence_to_cut, left, endo_or_exo="endo"
+                        sequence_dict, sequence_to_cut, sequence, endo_or_exo="endo"
                     )
                     sequence_graph = update_sequence_graph(
-                        sequence_graph, sequence_to_cut, left
+                        sequence_graph, sequence_to_cut, sequence
                     )
-                if accept_addition(len(left)- 1):
-                    n_generated_peptides += 1
-                    sequence_dict = update_sequence_dict(
-                        sequence_dict, sequence_to_cut, right, endo_or_exo="endo"
-                    )
-                    sequence_graph = update_sequence_graph(
-                        sequence_graph, sequence_to_cut, right
-                    )
+           
 
     for node in sequence_graph.nodes():
         sequence_graph.add_edge(node, node, weight=sequence_dict[node])
@@ -274,7 +275,9 @@ def update_sequence_graph(sequence_graph: nx.DiGraph, source_sequence, target_se
     return sequence_graph
 
 from scipy.stats import gamma
-def accept_addition(length):
+def accept_addition(length, min_length = 4):
+    if length < min_length:
+        return False
     a, shape, scale = 5.5, 8, 4.5 
     g = gamma(a=a, scale=scale, loc=shape)
     x = np.linspace(0, 100)
@@ -284,3 +287,5 @@ def accept_addition(length):
     if u < a:
         return True
     return False
+
+
