@@ -21,5 +21,6 @@ def plot_peptidome(protein : str, sequence_dict : dict, ax):
                     [-height, -height],
                     linewidth=2,
                     color=cmap(copy_number),
+        
                 )
                 break
