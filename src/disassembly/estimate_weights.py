@@ -143,11 +143,11 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
 
             elif key.startswith(target):
                 p1 = key[len(target) - 1]
-                mult_to_new_weight = meta_enzyme[p1]
+                #mult_to_new_weight = meta_enzyme[p1]
 
             else:
                 p1 = key[-len(target) - 1]
-                mult_to_new_weight = meta_enzyme[p1]
+                #mult_to_new_weight = meta_enzyme[p1]
 
             new_weight = data["weight"] + add_to_weight
             #new_weight += (np.abs(1/len(out_edges) - new_weight) *  lr) # force to move away from uniform
