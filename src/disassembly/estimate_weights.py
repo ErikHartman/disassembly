@@ -8,28 +8,7 @@ Main function is esimate_weights().
 import networkx as nx
 import numpy as np
 from disassembly.simulate_proteolysis import amino_acids
-
-
-def normalize_dict(d):
-    s = sum(d.values())
-    return {k: v / s for k, v in d.items()}
-
-
-def KL(q, p):
-    q = np.asarray(list(q))
-    p = np.asarray(list(p))
-    q = 1e-8 + q / np.sum(q)
-    p = 1e-8 + p / np.sum(p)
-
-    return np.sum(np.where(q != 0, q * np.log(q / p), 0))
-
-
-def KL_gradient(q, p):
-    q = np.asarray(list(q))
-    p = np.asarray(list(p))
-    q = 1e-8 + q / np.sum(q)
-    p = 1e-8 + p / np.sum(p)
-    return np.sum(np.where(q != 0, np.log(q / p) + 1, 0))
+from disassembly.util import KL, normalize_dict, get_trend
 
 
 def estimate_weights(
@@ -40,12 +19,10 @@ def estimate_weights(
     exo_mult_factor: float = 10,
     lr: float = 0.1,
     n_iterations: int = 100,
-    N_T: int = 1000,
     alpha: float = 0.001,
 ):
     keys = list(P.keys())
-    values = list(P.values())
-    P = {k: N_T * v / sum(values) for k, v in zip(keys, values)}
+    P = normalize_dict(P)
     G = nx.DiGraph()
     G.add_nodes_from([(k, {"layer": len(k)}) for k in keys])
     for key1 in keys:
@@ -70,55 +47,88 @@ def estimate_weights(
     lr_cooldown = 100
     for i in range(n_iterations):
         lr_cooldown -= 1
-        p_generated = generate_guess(G, keys, N_T)
+        p_generated = generate_guess(G, keys)
         generated[i] = p_generated
         kl = KL(P.values(), p_generated.values())
         trend = get_trend(kls[-50:])
+
         print(
             f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-25:]):.2f} | {trend} | nz: {len(np.nonzero(weights[:, i-1])[0])}",
             end="",
         )
-        if lr_cooldown <= 0 and trend == "Increasing" and lr > 0.0001:
+
+
+        if lr_cooldown <= 0 and (trend == "Increasing" or trend=="Plateau") and lr > 0.0001:
             lr_cooldown = 75
             lr = lr / 2
             print(f"\nLearning rate decreased to {lr}")
+
         G = update_weights(
             G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alpha
         )
+
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
+
+        if i>200 and trend(kls[-100:]) == "Plateau":
+            break
+
+                
+        if np.mean(kls[-50:]) < 0.01:
+            break
+
+
 
     return G, kls, generated, weights
 
 
-def generate_guess(G, keys, N_T):
+def generate_guess(G: nx.DiGraph, keys):
+    """
+    Outputs a tuple of the distribution for the longest node and a matrix
+    """
     longest_key = sorted(keys, key=len)[-1]
-    p_generated = {key: 0 for key in keys}
-    """
-    Starting from the longest key
-    get random choice from out edges (weighted)
-    if random choice == longest key
-        p_generated[longest key] += 1
-    else:
-        get new random choice from out edges of random choice.
-        if new random choice == random choice
-            p_generated[random_choice] += 1
-        repeat
-    """
-    for _ in range(N_T):
-        sequence = longest_key
-        next_edge = None
-        while True:
-            out_edges = G.out_edges(sequence, data=True)
-            weights = np.array([weight["weight"] for _, _, weight in out_edges])
-            edges_to = [edge_to for _, edge_to, _ in out_edges]
-            next_edge = np.random.choice(edges_to, p=weights)
-            if next_edge == sequence:
-                break
-            sequence = next_edge
+    p_generated = {}
+    terminal_nodes = [node for node in G.nodes() if G.out_degree(node) == 1]
 
-        p_generated[sequence] += 1
-    return p_generated
+    for node in terminal_nodes:  # one hot terminal nodes
+        oh_node = create_one_hot(keys, node)
+        p_generated[node] = oh_node
+
+    out_edges = {
+        source: [target for _, target in G.out_edges(source) if source != target]
+        for source in G.nodes()
+    }
+
+    while len(p_generated.keys()) < len(keys):
+        solvables = get_solvable(out_edges, p_generated)
+        for solvable in solvables:
+            p_generated[solvable] = np.zeros(len(keys))
+            for source, target in G.out_edges(solvable):
+                if source == target:
+                    p_target = create_one_hot(keys, source)
+                else:
+                    p_target = p_generated[target]
+                w_source_target = G[source][target]["weight"]
+                p_generated[source] += w_source_target * p_target
+    guess = {keys[i] : p_generated[longest_key][i] for i in range(len(keys))}
+    return guess
+
+def create_one_hot(keys, key):
+    one_hot = np.zeros(len(keys))
+    one_hot[keys.index(key)] = 1
+    return one_hot
+
+
+def get_solvable(out_edges, p_generated):
+    solvable = []
+    for source, targets in out_edges.items():
+        if (
+            set(targets).issubset(set((p_generated.keys())))
+            and source not in p_generated.keys()
+        ):
+            solvable.append(source)
+    return solvable
+
 
 
 def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alpha):
@@ -135,7 +145,7 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
             add_to_weight = diff * lr
 
             if len(key) - len(target) == 1:
-                add_to_weight *= 10
+                add_to_weight *= exo_mult_factor
                 mult_to_new_weight = 1
 
             elif key == target:
@@ -175,21 +185,29 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
     return G
 
 
-def get_trend(data):
-    diff = np.diff(data)
-    mean_diff = np.mean(diff)
-    std_diff = np.std(diff)
-    trend_threshold = 1e-2
-    stochastic_threshold = 1
-    if mean_diff > trend_threshold:
-        return "Increasing"
-    elif mean_diff < -trend_threshold:
-        return "Decreasing"
-    elif std_diff > stochastic_threshold:
-        return "Stochastic"
-    else:
-        return "Plateau"
-
-
 def sigmoid(x, temperature=1.0):
     return 1 / (1 + np.exp(-(x - 0.5) / temperature))
+
+"""
+
+Old way of generating guess (stochastic)
+
+
+def generate_guess(G, keys, N_T):
+    longest_key = sorted(keys, key=len)[-1]
+    p_generated = {key: 0 for key in keys}
+    for _ in range(N_T):
+        sequence = longest_key
+        next_edge = None
+        while True:
+            out_edges = G.out_edges(sequence, data=True)
+            weights = np.array([weight["weight"] for _, _, weight in out_edges])
+            edges_to = [edge_to for _, edge_to, _ in out_edges]
+            next_edge = np.random.choice(edges_to, p=weights)
+            if next_edge == sequence:
+                break
+            sequence = next_edge
+
+        p_generated[sequence] += 1
+    return p_generated
+"""
