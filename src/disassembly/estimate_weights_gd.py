@@ -27,7 +27,7 @@ def estimate_weights(
         )
         for key, target, data in out_edges:
             nx.set_edge_attributes(
-                graph, {(key, target): {"weight": 0.5 * data["weight"] / total_out}}
+                graph, {(key, target): {"weight": 0.75 * data["weight"] / total_out}}
             )
 
     generated = {}
@@ -42,12 +42,12 @@ def estimate_weights(
         trend = get_trend(kls[-50:])
         print(
             f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-25:]):.2f} | {trend} | nz: {len(np.nonzero(weights[:, i-1])[0])}",
-            end="",
+            end="", flush=True
         )
 
         dp_dw = compute_dp_dw(graph, keys, df)
         dL_dp = compute_dL_dp(true_dict_vals, list(guess.values()))
-        grad = compute_dL_dw(dL_dp, dp_dw)
+        gradient = compute_dL_dw(dL_dp, dp_dw)
 
         if (
             lr_cooldown <= 0
@@ -59,7 +59,7 @@ def estimate_weights(
             print(f"\nLearning rate decreased to {lr}")
 
         weights[:, i] = [data["weight"] for _, _, data in graph.edges(data=True)]
-        graph = update_weights(graph, grad, lr)
+        graph = update_weights(graph, gradient, lr)
         kls.append(kl)
 
         if np.mean(kls[-50:]) < 0.02:
@@ -105,7 +105,7 @@ def generate_guess(graph: nx.DiGraph, keys):
     return guess, pd.DataFrame(p_generated, index=keys)
 
 
-def compute_dp_dw(graph, keys, df):
+def compute_dp_dw(graph : nx.DiGraph, keys : list, df : pd.DataFrame):
     """
     dP / dw
     Change of P based on w
@@ -142,17 +142,12 @@ def compute_dp_dw(graph, keys, df):
 
 
 def compute_dL_dp(true, guess):
-    """
-    q = real
-    p = guess
-    """
     return -np.array(true) / (np.array(guess) + 1e-8)
 
 
 def compute_dL_dw(dL_dp, dp_dw):
     """
     Gradient
-    Sx1 * 1xS = 1x1
     """
     dL_dw = {}
     for edge, val in dp_dw.items():
@@ -192,9 +187,10 @@ def update_weights(graph, grad, lr):
         for source, target in graph.out_edges(source):
             old_weight = graph[source][target]["weight"]
             new_weight = max(0, old_weight - lr * grad[(source, target)])
-            diff = new_weight - old_weight
+            diff = new_weight - old_weight # diff is lr*grad
             sum_diffs += diff
             diffs[target] = diff
+        
         k = 1
         while (sum_old_weight + k * sum_diffs) > 1:
             k = k / 2

@@ -11,15 +11,21 @@ def get_disassembly(P: dict, disassembly_indexes: dict):
     """
     P is a dict of {object:copy_number}
     disassembly_indexes is a dict of {object:disassembly index}
+
+    Here we modify the assembly:
+
+    sum d (n_i / N_T)
+
+    Remove -1 since discovery for the first time isnt hard
     """
     disassembly = 0
     n_t = sum(P.values())  # total number of copies in ensemble
 
     for sequence in P.keys():
-        n_i_minus_one = P[sequence] - 1
-        if n_i_minus_one > 0:
-            disassembly += (math.e ** disassembly_indexes[sequence]) * (
-                n_i_minus_one / n_t
+        n_i = P[sequence]
+        if n_i > 0:
+            disassembly += (disassembly_indexes[sequence]) * (
+                n_i / n_t
             )
     return disassembly
 
@@ -121,6 +127,8 @@ def get_disassembly_indexes_mc(G: nx.DiGraph, N_particles: int):
                     break
                 weights = np.array([weight["weight"] for _, _, weight in out_edges])
                 sum_weights = sum(weights)
+                if sum(weights) == 0:
+                    print("weights == 0")
                 weights = [w / sum_weights for w in weights]
                 targets = [target for _, target, _ in out_edges]
                 next_node = np.random.choice(targets, p=weights)

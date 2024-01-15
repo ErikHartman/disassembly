@@ -54,7 +54,7 @@ def estimate_weights(
 
         print(
             f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-25:]):.2f} | {trend} | nz: {len(np.nonzero(weights[:, i-1])[0])}",
-            end="",
+            end="", flush=True
         )
 
 
@@ -70,7 +70,7 @@ def estimate_weights(
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
 
-        if i>200 and trend(kls[-100:]) == "Plateau":
+        if i>200 and get_trend(kls[-100:]) == "Plateau":
             break
 
                 

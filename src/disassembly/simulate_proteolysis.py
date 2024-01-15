@@ -115,9 +115,11 @@ def simulate_proteolysis(
     for sequence in sequence_dict.keys():
         sequence_graph.add_node(sequence, len=len(sequence))  # Adding nodes
 
+    total_iterations = 0
     n_generated_peptides = 0
     while n_generated_peptides < n_generate:
-        print(f"\r {n_generated_peptides} / {n_generate}", end="")
+        total_iterations += 1
+        print(f"\r {n_generated_peptides} / {n_generate} ({total_iterations})", end="")
         exo_or_endo = np.random.choice(["endo", "exo"], p=endo_or_exo_probability)
         if exo_or_endo == "exo":
             sequences_longer_than_4 = [s for s in sequence_dict.keys() if len(s) > 4]
@@ -185,6 +187,23 @@ def simulate_proteolysis(
                     p=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
                 )
             )
+
+            # The second cut should be selected so that it generates "good" sequences
+
+            # 1. Get indexes
+            # 2. Compute distance from cutting_index1
+            # 3. Weight these indexes by index to cut and the length gamma
+            #       index_to_cut[index] = enzymes.meta_enzyme[aminoacid] * gamma.pdf(abs(index - cutting_index1))
+            # 4. Select based on that
+            # 5. Always accept middle
+
+            a, shape, scale = 5.5, 8, 4.5
+            g = gamma(a=a, scale=scale, loc=shape)
+            for index in index_to_cut.keys():
+                index_to_cut[index] = (
+                    index_to_cut[index] * g.pdf(abs(index - cutting_index1)) + 1e-8
+                )
+
             cutting_index2 = int(
                 np.random.choice(
                     list(index_to_cut.keys()),
@@ -200,10 +219,20 @@ def simulate_proteolysis(
             ]
             right = sequence_to_cut[max(cutting_index1, cutting_index2) + 1 :]
 
-            for sequence in [left, middle, right]:
+            # Accept middle
+            n_generated_peptides += 1
+            sequence_dict = update_sequence_dict(
+                sequence_dict, sequence_to_cut, middle, endo_or_exo="endo"
+            )
+            sequence_graph = update_sequence_graph(
+                sequence_graph, sequence_to_cut, middle
+            )
+            # Check if accept others
+            for sequence in [left, right]:
                 if accept_addition(len(sequence) - 1) and (
                     (not starting_sequence.startswith(sequence))
-                    and (not starting_sequence.endswith(sequence))):
+                    and (not starting_sequence.endswith(sequence))
+                ):
                     n_generated_peptides += 1
                     sequence_dict = update_sequence_dict(
                         sequence_dict, sequence_to_cut, sequence, endo_or_exo="endo"
@@ -214,7 +243,7 @@ def simulate_proteolysis(
 
     for node in sequence_graph.nodes():
         sequence_graph.add_edge(node, node, weight=sequence_dict[node])
-    print(f"\n{len(sequence_dict)} unique peptides. {n_generate + n_start} total")
+    print(f"\n{len(sequence_dict)} unique peptides. {sum(sequence_dict.values())} total")
     return sequence_dict, sequence_graph
 
 
