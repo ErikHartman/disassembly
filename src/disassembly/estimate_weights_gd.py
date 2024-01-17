@@ -4,155 +4,274 @@ import pandas as pd
 from disassembly.util import KL, normalize_dict, get_trend
 
 
-def estimate_weights(
-    true_dict: dict,
-    lr: float = 0.1,
-    n_iterations: int = 100,
-):
-    true_dict = normalize_dict(true_dict)
-    true_dict_vals = list(true_dict.values())
-    keys = list(true_dict.keys())
+class WeightEstimatorGD:
+    """
+    Class to estimate weights using gradient descent.
 
-    graph = nx.DiGraph()
-    graph.add_nodes_from([(k, {"layer": len(k)}) for k in keys])
-    for key1 in keys:
-        for key2 in keys:
-            if (key1 in key2) and (key1 != key2):
-                graph.add_edge(key2, key1, weight=np.random.uniform(0, 1))
+    wegd = WeightEstimatorGD(lr, n_iterations, lam)
+    generated_graph = wegd(true_dict, verbose=True)
+    """
 
-    for node in graph.nodes():
-        out_edges = graph.out_edges(node, data=True)
-        total_out = sum(
-            [data["weight"] for _, _, data in graph.out_edges(node, data=True)]
-        )
-        for key, target, data in out_edges:
-            nx.set_edge_attributes(
-                graph, {(key, target): {"weight": 0.75 * data["weight"] / total_out}}
-            )
+    def __init__(
+        self,
+        lr: float,
+        n_iterations: int,
+        lam: float,
+    ) -> None:
+        self.lr = lr
+        self.n_iterations = n_iterations
+        self.lam = lam
 
-    generated = {}
-    kls = []
-    weights = np.zeros((len(graph.edges()), n_iterations), dtype=float)
-    lr_cooldown = 100
-    for i in range(n_iterations):
-        lr_cooldown -= 1
-        guess, df = generate_guess(graph, keys)
-        generated[i] = guess
-        kl = KL(true_dict.values(), guess.values())
-        trend = get_trend(kls[-50:])
-        print(
-            f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-25:]):.2f} | {trend} | nz: {len(np.nonzero(weights[:, i-1])[0])}",
-            end="", flush=True
+    def run(self, true_dict, verbose: bool):
+        self.true_dict = true_dict
+        self.keys = list(true_dict.keys())
+        self.true_dict_vals = list(true_dict.values())
+        self.graph = self.create_graph()  # creates the graph from keys
+
+        self.generated = {}
+        self.losses = []
+        self.weights = np.zeros(
+            (len(self.graph.edges()), self.n_iterations), dtype=float
         )
 
-        dp_dw = compute_dp_dw(graph, keys, df)
-        dL_dp = compute_dL_dp(true_dict_vals, list(guess.values()))
-        gradient = compute_dL_dw(dL_dp, dp_dw)
+        for iteration in range(self.n_iterations):
 
-        if (
-            lr_cooldown <= 0
-            and (trend == "Increasing" or trend == "Stochastic")
-            and lr > 0.00001
-        ):
-            lr_cooldown = 50
-            lr = lr / 2
-            print(f"\nLearning rate decreased to {lr}")
+            guess, guess_df = self.generate_output(self.graph)
+            self.generated[iteration] = guess
 
-        weights[:, i] = [data["weight"] for _, _, data in graph.edges(data=True)]
-        graph = update_weights(graph, gradient, lr)
-        kls.append(kl)
+            # Compute loss
+            kl = KL(self.true_dict_vals, guess.values())
+            reg = get_l2(self.graph) * self.lam
+            loss = kl + reg
+            self.losses.append(loss)
 
-        if np.mean(kls[-50:]) < 0.02:
-            break
+            if verbose:
+                print(
+                    f"\r {iteration} / {self.n_iterations} | {loss:.2f}, kl: {kl:.2f}, reg: {reg:.2f}  | nz: {len(np.nonzero(self.weights[:, iteration-1])[0])}",
+                    end="",
+                    flush=True,
+                )
 
-    return graph, kls, generated, weights
+            # Compute gradient
+            dp_dw = self.compute_dp_dw(guess_df)
+            dL_dp = self.compute_dL_dp(self.true_dict_vals, list(guess.values()))
+            gradient = self.compute_dL_dw(dL_dp, dp_dw)
+            grad_reg = self.get_grad_reg_l2(self.graph)
 
+            # Update graph
+            self.graph = self.update_weights(gradient, grad_reg)
 
-def generate_guess(graph: nx.DiGraph, keys):
-    """
-    Outputs a tuple of the distribution for the longest node and a matrix
-    """
-    longest_key = sorted(keys, key=len)[-1]
-    p_generated = {}
-    terminal_nodes = [node for node in graph.nodes() if graph.out_degree(node) == 0]
+            self.weights[:, iteration] = [
+                data["weight"] for _, _, data in self.graph.edges(data=True)
+            ]
+            if loss < 0.01:
+                break
 
-    for node in terminal_nodes:  # one hot terminal nodes
-        oh_node = create_one_hot(keys, node)
-        p_generated[node] = oh_node
+        return self.graph
 
-    out_edges = {
-        source: [target for _, target in graph.out_edges(source) if source != target]
-        for source in graph.nodes()
-    }
+    def generate_output(self, graph: nx.DiGraph) -> (dict, pd.DataFrame):
+        """
+        Generates an output dict from a graph
+        """
+        longest_key = sorted(self.keys, key=len)[-1]
+        p_generated = {}
+        terminal_nodes = [node for node in graph.nodes() if graph.out_degree(node) == 0]
 
-    while len(p_generated.keys()) < len(keys):
-        solvables = get_solvable(out_edges, p_generated)
-        for solvable in solvables:
-            p_generated[solvable] = np.zeros(len(keys))
+        for node in terminal_nodes:  # one hot terminal nodes
+            oh_node = create_one_hot(self.keys, node)
+            p_generated[node] = oh_node
 
-            for source, target in graph.out_edges(solvable):
-                p_target = p_generated[target]
-                w_source_target = graph[source][target]["weight"]
+        out_edges = {
+            source: [
+                target for _, target in graph.out_edges(source) if source != target
+            ]
+            for source in graph.nodes()
+        }
+
+        while len(p_generated.keys()) < len(self.keys):
+            solvables = get_solvable(out_edges, p_generated)
+            for solvable in solvables:
+                p_generated[solvable] = np.zeros(len(self.keys))
+
+                for source, target in graph.out_edges(solvable):
+                    p_target = p_generated[target]
+                    w_source_target = graph[source][target]["weight"]
+                    p_generated[source] += w_source_target * p_target
+
+                w_source_target = 1 - sum(
+                    [
+                        data["weight"]
+                        for _, _, data in graph.out_edges(source, data=True)
+                    ]
+                )
+                p_target = create_one_hot(self.keys, source)
                 p_generated[source] += w_source_target * p_target
 
-            w_source_target = 1 - sum(
-                [data["weight"] for _, _, data in graph.out_edges(source, data=True)]
+        guess = {
+            self.keys[i]: p_generated[longest_key][i] for i in range(len(self.keys))
+        }
+        return guess, pd.DataFrame(p_generated, index=self.keys)
+
+    def create_graph(self):
+        graph = nx.DiGraph()
+        graph.add_nodes_from([(k, {"layer": len(k)}) for k in self.keys])
+        for key1 in self.keys:
+            for key2 in self.keys:
+                if (key1 in key2) and (key1 != key2):
+                    graph.add_edge(key2, key1, weight=np.random.uniform(0, 1))
+        # normalize
+        for node in graph.nodes():
+            out_edges = graph.out_edges(node, data=True)
+            total_out = sum(
+                [data["weight"] for _, _, data in graph.out_edges(node, data=True)]
             )
-            p_target = create_one_hot(keys, source)
-            p_generated[source] += w_source_target * p_target
+            for key, target, data in out_edges:
+                nx.set_edge_attributes(
+                    graph,
+                    {(key, target): {"weight": 0.75 * data["weight"] / total_out}},
+                )
+        return graph
 
-    guess = {keys[i]: p_generated[longest_key][i] for i in range(len(keys))}
-    return guess, pd.DataFrame(p_generated, index=keys)
+    def compute_dp_dw(self, guess_df: pd.DataFrame) -> dict:
+        """
+        dP / dw
+        Change of P based on w
+        Sx1 vector
+        """
+        longest_key = sorted(self.keys, key=len)[-1]
+        prob_traversed = {key: 0 for key in self.keys}
+        prob_traversed[longest_key] = 1
 
+        for sequence, n in prob_traversed.items():
+            out_edges = [
+                (source, target, data)
+                for source, target, data in self.graph.out_edges(sequence, data=True)
+            ]
+            weights = np.array([weight["weight"] for _, _, weight in out_edges])
+            edges_to = [edge_to for _, edge_to, _ in out_edges]
+            for w, e in zip(weights, edges_to):
+                prob_traversed[e] += w * n
 
-def compute_dp_dw(graph : nx.DiGraph, keys : list, df : pd.DataFrame):
-    """
-    dP / dw
-    Change of P based on w
-    Sx1 vector
-    """
-    longest_key = sorted(keys, key=len)[-1]
-    prob_traversed = {key: 0 for key in keys}
-    prob_traversed[longest_key] = 1
+        dp_dw = {}
 
-    for sequence, n in prob_traversed.items():
-        out_edges = [
-            (source, target, data)
-            for source, target, data in graph.out_edges(sequence, data=True)
-        ]
-        weights = np.array([weight["weight"] for _, _, weight in out_edges])
-        edges_to = [edge_to for _, edge_to, _ in out_edges]
-        for w, e in zip(weights, edges_to):
-            prob_traversed[e] += w * n
+        for key in self.keys:
+            out_edges = self.graph.out_edges(key)
+            for (
+                source,
+                target,
+            ) in out_edges:  # P(longest to source) * (P(target) - onehot(source))
+                dp_dw[(source, target)] = prob_traversed[source] * (
+                    guess_df[target].values - create_one_hot(self.keys, source)
+                )
 
-    # TODO: spara matrisen
-    dp_dw = {}
+        return dp_dw
 
-    for key in keys:
-        out_edges = graph.out_edges(key)
-        for (
-            source,
-            target,
-        ) in out_edges:  # P(longest to source) * (P(target) - onehot(source))
-            dp_dw[(source, target)] = prob_traversed[source] * (
-                df[target].values - create_one_hot(keys, source)
+    def update_weights(self, grad, grad_reg=None) -> nx.DiGraph:
+        diffs = {}
+        k = 1
+
+        old_graph = nx.DiGraph()
+        for source, target, data in self.graph.edges(data=True):
+            old_graph.add_edge(source, target, weight=data["weight"])
+
+        old_loss = self.losses[-1]
+
+        for source in self.graph.nodes():
+            sum_old_weight = sum(
+                [
+                    data["weight"]
+                    for _, _, data in self.graph.out_edges(source, data=True)
+                ]
+            )
+            sum_diffs = 0
+
+            for source, target in self.graph.out_edges(source):
+                old_weight = self.graph[source][target]["weight"]
+                grad_weight = grad[(source, target)]
+
+                if grad_reg:  # if we regularize
+                    grad_weight += grad_reg[(source, target)]
+
+                new_weight = max(0, old_weight - self.lr * grad_weight)
+                diff = new_weight - old_weight  # diff is -lr*grad
+                sum_diffs += diff
+                diffs[(source, target)] = diff
+
+            while (sum_old_weight + k * sum_diffs) >= 1:
+                k = k / 2
+
+        new_graph = self.graph.copy()
+
+        while True:
+            # Update graph
+            for source, target in new_graph.edges():
+                nx.set_edge_attributes(
+                    new_graph,
+                    {
+                        (source, target): {
+                            "weight": max(
+                                0,
+                                old_graph[source][target]["weight"]
+                                + diffs[(source, target)] * k,
+                            )
+                        }
+                    },
+                )
+
+            # Get new KL
+            new_guess, _ = self.generate_output(new_graph)
+
+            new_loss = KL(self.true_dict_vals, list(new_guess.values())) + (
+                get_l2(new_graph) * self.lam
             )
 
-    return dp_dw
+            if new_loss <= old_loss:
+                return new_graph
+
+            if k < 1e-15:
+                return old_graph
+
+            k = k / 2
+            new_graph = self.graph  # resets the new_graph to graph
+
+    def compute_dL_dp(self, true, guess):
+        return -np.array(true) / (np.array(guess))
+
+    def compute_dL_dw(self, dL_dp, dp_dw):
+        """
+        Gradient
+        """
+        dL_dw = {}
+        for edge, val in dp_dw.items():
+            dL_dw[edge] = np.sum(val * dL_dp)
+        return dL_dw
+
+    def get_grad_reg_l2(self, graph):
+        grad_reg = {}
+        for source in graph.nodes():
+            for _, target, data in graph.out_edges(source, data=True):
+                grad_reg[(source, target)] = 2 * data["weight"] * self.lam
+        return grad_reg
 
 
-def compute_dL_dp(true, guess):
-    return -np.array(true) / (np.array(guess) + 1e-8)
+def create_one_hot(keys, key):
+    one_hot = np.zeros(len(keys))
+    one_hot[keys.index(key)] = 1
+    return one_hot
 
 
-def compute_dL_dw(dL_dp, dp_dw):
-    """
-    Gradient
-    """
-    dL_dw = {}
-    for edge, val in dp_dw.items():
-        dL_dw[edge] = np.sum(val * dL_dp)
-    return dL_dw
+def get_solvable(out_edges, p_generated):
+    solvable = []
+    for source, targets in out_edges.items():
+        if (
+            set(targets).issubset(set((p_generated.keys())))
+            and source not in p_generated.keys()
+        ):
+            solvable.append(source)
+    return solvable
+
+
+#
 
 
 def get_l1(graph):
@@ -171,57 +290,3 @@ def get_elastic_net(graph, lambda_1, lambda_2):
             for _, _, data in graph.edges(data=True)
         ]
     )
-
-
-def update_weights(graph, grad, lr):
-    """
-    Updates weights
-    Makes sure that sum_new_weight < 1
-    """
-    for source in graph.nodes():
-        sum_old_weight = sum(
-            [data["weight"] for _, _, data in graph.out_edges(source, data=True)]
-        )
-        sum_diffs = 0
-        diffs = {}
-        for source, target in graph.out_edges(source):
-            old_weight = graph[source][target]["weight"]
-            new_weight = max(0, old_weight - lr * grad[(source, target)])
-            diff = new_weight - old_weight # diff is lr*grad
-            sum_diffs += diff
-            diffs[target] = diff
-        
-        k = 1
-        while (sum_old_weight + k * sum_diffs) > 1:
-            k = k / 2
-
-        for source, target in graph.out_edges(source):
-            nx.set_edge_attributes(
-                graph,
-                {
-                    (source, target): {
-                        "weight": max(
-                            0, graph[source][target]["weight"] + diffs[target] * k
-                        )
-                    }
-                },
-            )
-
-    return graph
-
-
-def create_one_hot(keys, key):
-    one_hot = np.zeros(len(keys))
-    one_hot[keys.index(key)] = 1
-    return one_hot
-
-
-def get_solvable(out_edges, p_generated):
-    solvable = []
-    for source, targets in out_edges.items():
-        if (
-            set(targets).issubset(set((p_generated.keys())))
-            and source not in p_generated.keys()
-        ):
-            solvable.append(source)
-    return solvable

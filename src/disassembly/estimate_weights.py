@@ -20,6 +20,7 @@ def estimate_weights(
     lr: float = 0.1,
     n_iterations: int = 100,
     alpha: float = 0.001,
+    early_stop: bool = True
 ):
     keys = list(P.keys())
     P = normalize_dict(P)
@@ -70,11 +71,11 @@ def estimate_weights(
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
 
-        if i>200 and get_trend(kls[-100:]) == "Plateau":
+        if i>200 and get_trend(kls[-100:]) == "Plateau" and early_stop:
             break
 
                 
-        if np.mean(kls[-50:]) < 0.01:
+        if np.mean(kls[-100:]) < 0.01 and early_stop:
             break
 
 
@@ -176,7 +177,7 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
                     G, {(key, target): {"weight": data["weight"] / total_out}}
                 )
         else:
-            weights = np.random.uniform(0,1,len(out_edges))
+            weights = np.random.uniform(0.01,1,len(out_edges))
             total_out = sum(weights)
             for edge, weight in zip(out_edges, weights):
                 key, target, _  = edge

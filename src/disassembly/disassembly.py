@@ -91,9 +91,12 @@ def get_disassembly_indexes_mc(G: nx.DiGraph, N_particles: int):
 
     return mean_disassembly_indexes
 
+
+
 def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
     """
-    For joint disassembly spaces.
+    For joint disassembly spaces we need to consider the contribution of a particle
+    to the assembly path.
     
     """
     
