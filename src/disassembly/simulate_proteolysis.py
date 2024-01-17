@@ -197,13 +197,7 @@ def simulate_proteolysis(
             # 4. Select based on that
             # 5. Always accept middle
 
-            a, shape, scale = 5.5, 8, 4.5
-            g = gamma(a=a, scale=scale, loc=shape)
-            for index in index_to_cut.keys():
-                index_to_cut[index] = (
-                    index_to_cut[index] * g.pdf(abs(index - cutting_index1)) + 1e-8
-                )
-
+  
             cutting_index2 = int(
                 np.random.choice(
                     list(index_to_cut.keys()),
@@ -219,16 +213,8 @@ def simulate_proteolysis(
             ]
             right = sequence_to_cut[max(cutting_index1, cutting_index2) + 1 :]
 
-            # Accept middle
-            n_generated_peptides += 1
-            sequence_dict = update_sequence_dict(
-                sequence_dict, sequence_to_cut, middle, endo_or_exo="endo"
-            )
-            sequence_graph = update_sequence_graph(
-                sequence_graph, sequence_to_cut, middle
-            )
             # Check if accept others
-            for sequence in [left, right]:
+            for sequence in [left, right, middle]:
                 if accept_addition(len(sequence) - 1) and (
                     (not starting_sequence.startswith(sequence))
                     and (not starting_sequence.endswith(sequence))
@@ -316,7 +302,7 @@ from scipy.stats import gamma
 def accept_addition(length, min_length=4):
     if length < min_length:
         return False
-    a, shape, scale = 5.5, 8, 4.5
+    a, shape, scale = 10, 1, 5
     g = gamma(a=a, scale=scale, loc=shape)
     x = np.linspace(0, 100)
     s = g.pdf(x)
