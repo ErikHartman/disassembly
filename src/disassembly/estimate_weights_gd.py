@@ -1,15 +1,17 @@
 import networkx as nx
 import numpy as np
 import pandas as pd
-from disassembly.util import KL, normalize_dict, get_trend
+from disassembly.util import KL
 
 
 class WeightEstimatorGD:
     """
     Class to estimate weights using gradient descent.
 
+    ```
     wegd = WeightEstimatorGD(lr, n_iterations, lam)
     generated_graph = wegd(true_dict, verbose=True)
+    ```
     """
 
     def __init__(
@@ -47,7 +49,7 @@ class WeightEstimatorGD:
 
             if verbose:
                 print(
-                    f"\r {iteration} / {self.n_iterations} | {loss:.2f}, kl: {kl:.2f}, reg: {reg:.2f}  | nz: {len(np.nonzero(self.weights[:, iteration-1])[0])}",
+                    f"\r {iteration} / {self.n_iterations} | {loss:.2f}, kl: {kl:.2f}, reg: {reg:.2f}  | nz: { np.sum( self.weights[:, iteration-1] > 0 )} | ",
                     end="",
                     flush=True,
                 )
@@ -192,7 +194,8 @@ class WeightEstimatorGD:
                 if grad_reg:  # if we regularize
                     grad_weight += grad_reg[(source, target)]
 
-                new_weight = max(0, old_weight - self.lr * grad_weight)
+                new_weight = max(0, old_weight - self.lr * grad_weight) 
+                new_weight = 0 if new_weight < 0.0001 else new_weight
                 diff = new_weight - old_weight  # diff is -lr*grad
                 sum_diffs += diff
                 diffs[(source, target)] = diff
@@ -252,6 +255,10 @@ class WeightEstimatorGD:
             for _, target, data in graph.out_edges(source, data=True):
                 grad_reg[(source, target)] = 2 * data["weight"] * self.lam
         return grad_reg
+    
+    
+    
+
 
 
 def create_one_hot(keys, key):
