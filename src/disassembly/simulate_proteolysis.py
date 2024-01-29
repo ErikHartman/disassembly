@@ -26,29 +26,7 @@ and a sequence_graph, which has weights for all degradation paths (ground truth)
 
 import networkx as nx
 import numpy as np
-
-amino_acids = {
-    "VAL": "V",
-    "ILE": "I",
-    "LEU": "L",
-    "GLU": "E",
-    "GLN": "Q",
-    "ASP": "D",
-    "ASN": "N",
-    "HIS": "H",
-    "TRP": "W",
-    "PHE": "F",
-    "TYR": "Y",
-    "ARG": "R",
-    "LYS": "K",
-    "SER": "S",
-    "THR": "T",
-    "MET": "M",
-    "ALA": "A",
-    "GLY": "G",
-    "PRO": "P",
-    "CYS": "C",
-}
+from disassembly.util import amino_acids
 
 
 class enzyme:

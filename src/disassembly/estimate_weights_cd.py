@@ -4,13 +4,22 @@ import pandas as pd
 from disassembly.util import KL
 
 
-class WeightEstimatorGD:
+class WeightEstimatorCD:
     """
-    Class to estimate weights using gradient descent.
+    TODO: Class to estimate weights using coordinate descent.
+
+    Currently just copy paste from GD.
+
+    Idea: 
+
+    For n iterations:
+        For each weight:
+            Update it in the direction of maximum descent (only considering this weight).
+    
 
     ```
-    wegd = WeightEstimatorGD(lr, n_iterations, lam)
-    generated_graph = wegd(true_dict, verbose=True)
+    wecd = WeightEstimatorCD(lr, n_iterations, lam)
+    generated_graph = wecd(true_dict, verbose=True)
     ```
     """
 
@@ -33,7 +42,6 @@ class WeightEstimatorGD:
         self.generated = {}
         self.losses = []
         self.weights = {}
-
 
         for iteration in range(self.n_iterations):
             guess, guess_df = self.generate_output(self.graph)
