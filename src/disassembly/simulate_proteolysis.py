@@ -175,21 +175,25 @@ def simulate_proteolysis(
             # 4. Select based on that
             # 5. Always accept middle
 
-  
             cutting_index2 = int(
                 np.random.choice(
                     list(index_to_cut.keys()),
-                    p=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
+                    p=[p / (sum(index_to_cut.values())) for p in index_to_cut.values()],
                 )
             )
 
             left = sequence_to_cut[: min(cutting_index1, cutting_index2) + 1]
             middle = sequence_to_cut[
-                min(cutting_index1, cutting_index2) : max(
+                min(cutting_index1, cutting_index2) + 1 : max(
                     cutting_index1, cutting_index2
                 )
             ]
-            right = sequence_to_cut[max(cutting_index1, cutting_index2) + 1 :]
+            right = sequence_to_cut[min(cutting_index1, cutting_index2) + len(middle) + 1 :]
+            
+            print("sequence ", sequence_to_cut)
+            print("left ", left)
+            print("middle ", middle)
+            print("right ", right)
 
             # Check if accept others
             for sequence in [left, right, middle]:

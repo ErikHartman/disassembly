@@ -91,7 +91,7 @@ def get_p1(graph: nx.DiGraph, N_particles: int = 10000):
 
 
 """
-Make function to plot logos!
+TODO: Make function to plot logos!
 
 Use LogoMaker
 
