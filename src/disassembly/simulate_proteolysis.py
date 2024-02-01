@@ -27,6 +27,16 @@ and a sequence_graph, which has weights for all degradation paths (ground truth)
 import networkx as nx
 import numpy as np
 from disassembly.util import amino_acids
+import random
+
+
+from scipy.stats import gamma
+
+a, shape, scale = 10, 1, 5
+g = gamma(a=a, scale=scale, loc=shape)
+x = np.linspace(0, 100)
+s = g.pdf(x)
+us = np.random.uniform(0, 1, size=1000)
 
 
 class enzyme:
@@ -96,27 +106,29 @@ def simulate_proteolysis(
 
     total_iterations = 0
     n_generated_peptides = 0
+
+    exo_or_endos = np.random.choice(
+        ["endo", "exo"], size=n_generate * 100, p=endo_or_exo_probability
+    )
+    n_or_c_terms = np.random.choice(["n", "c"], size=n_generate * 100, p=[0.5, 0.5])
+
     while n_generated_peptides < n_generate:
         total_iterations += 1
         if verbose:
             print(
                 f"\r {n_generated_peptides} / {n_generate} ({total_iterations})", end=""
             )
-        exo_or_endo = np.random.choice(["endo", "exo"], p=endo_or_exo_probability)
+        exo_or_endo = exo_or_endos[total_iterations]
+
         if exo_or_endo == "exo":
             sequences_longer_than_4 = [s for s in sequence_dict.keys() if len(s) > 4]
 
-            sequence_to_chew = np.random.choice(
-                sequences_longer_than_4,
-                p=[
-                    sequence_dict[v]
-                    / sum([sequence_dict[s] for s in sequences_longer_than_4])
-                    for v in sequences_longer_than_4
-                ],
-            )
-            if accept_addition(len(sequence_to_chew) - 1):
+            seq_dict_keys = list(sequence_dict.keys())
+            sequence_to_chew = random.choices(seq_dict_keys, weights=sequence_dict.values())[0]
+
+            if accept_addition(len(sequence_to_chew) - 1, n_generated_peptides):
                 n_generated_peptides += 1
-                n_or_c_term = np.random.choice(["n", "c"], p=[0.5, 0.5])
+                n_or_c_term = n_or_c_terms[n_generate]
                 if n_or_c_term == "n":
                     new_sequence = sequence_to_chew[1:]
                 else:
@@ -163,18 +175,15 @@ def simulate_proteolysis(
                         index_to_cut[index] = enzymes.meta_enzyme[aminoacid]
 
             # Perform two cuts
-            cutting_index1 = int(
-                np.random.choice(
-                    list(index_to_cut.keys()),
-                    p=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
-                )
-            )
-            cutting_index2 = int(
-                np.random.choice(
-                    list(index_to_cut.keys()),
-                    p=[p / (sum(index_to_cut.values())) for p in index_to_cut.values()],
-                )
-            )
+            cutting_index1 = random.choices(
+                list(index_to_cut.keys()),
+                weights=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
+            )[0]
+
+            cutting_index2 = random.choices(
+                list(index_to_cut.keys()),
+                weights=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
+            )[0]
 
             left = sequence_to_cut[: min(cutting_index1, cutting_index2) + 1]
             middle = sequence_to_cut[
@@ -187,7 +196,7 @@ def simulate_proteolysis(
 
             # Check if accept others
             for sequence in [left, right, middle]:
-                if accept_addition(len(sequence)) and (
+                if accept_addition(len(sequence), n_generated_peptides) and (
                     (not starting_sequence.startswith(sequence))
                     and (not starting_sequence.endswith(sequence))
                 ):
@@ -271,18 +280,12 @@ def update_sequence_graph(sequence_graph: nx.DiGraph, source_sequence, target_se
     return sequence_graph
 
 
-from scipy.stats import gamma
-
-
-def accept_addition(length, min_length=4):
+def accept_addition(length, iteration, min_length=4):
     if length < min_length:
         return False
-    a, shape, scale = 10, 1, 5
-    g = gamma(a=a, scale=scale, loc=shape)
-    x = np.linspace(0, 100)
-    s = g.pdf(x)
+
     a = g.pdf(length) / max(s)
-    u = np.random.uniform(0, 1)
-    if u < a:
+
+    if us[iteration % 1000] < a:
         return True
     return False
