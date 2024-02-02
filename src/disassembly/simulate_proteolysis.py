@@ -124,7 +124,9 @@ def simulate_proteolysis(
             sequences_longer_than_4 = [s for s in sequence_dict.keys() if len(s) > 4]
 
             seq_dict_keys = list(sequence_dict.keys())
-            sequence_to_chew = random.choices(seq_dict_keys, weights=sequence_dict.values())[0]
+            sequence_to_chew = random.choices(
+                seq_dict_keys, weights=sequence_dict.values()
+            )[0]
 
             if accept_addition(len(sequence_to_chew) - 1, n_generated_peptides):
                 n_generated_peptides += 1
@@ -157,13 +159,13 @@ def simulate_proteolysis(
                     n_cut_sites_in_sequence * sequences_longer_than_4[sequence]
                 )
 
-            sequence_to_cut = np.random.choice(
+            sequence_to_cut = random.choices(
                 list(sequence_frequencies.keys()),
-                p=[
+                weights=[
                     p / sum(sequence_frequencies.values())
                     for p in sequence_frequencies.values()
                 ],
-            )
+            )[0]
 
             index_to_cut = {}
             for aminoacid in enzymes.meta_enzyme.keys():

@@ -7,6 +7,7 @@ Functions for estimating disassembly.
 import networkx as nx
 import math
 import numpy as np
+import random
 
 
 
@@ -19,10 +20,9 @@ def get_disassembly(P: dict, disassembly_indexes: dict):
     n_t = sum(P.values())  # total number of copies in ensemble
 
     for sequence in P.keys():
-        n_i_minus_one = P[sequence] - 1
-        if n_i_minus_one > 0:
+        if P[sequence]  > 0:
             disassembly += math.e ** (disassembly_indexes[sequence]) * (
-                n_i_minus_one / n_t
+                P[sequence]  / n_t
             )
     return disassembly
 
@@ -107,10 +107,11 @@ def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
 
     disassembly_indexes = {sequence: [] for sequence in G.nodes()}
 
+    
+    starting_sequences = np.random.choice(terminal_nodes, size=N_particles)
     # Release particle
-
-    for _ in range(N_particles):
-        starting_sequence = np.random.choice(terminal_nodes)
+    for particle in range(N_particles):
+        starting_sequence = starting_sequences[particle]
         sequence: str = starting_sequence
         path = [] # List of nodes passed: n_4, n_3, n_2, n_1, n_0
         steps = []  # List of weights in path, w_43, w_32, w_21, w_10
@@ -126,7 +127,7 @@ def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
             sum_weights = sum(weights)
             weights = [w / sum_weights for w in weights]
             targets = [target for _, target, _ in out_edges]
-            next_node = np.random.choice(targets, p=weights)
+            next_node = random.choices(targets, weights=weights)[0]
             weight_from_next_node_to_sequence = G_orig[next_node][sequence]["weight"] / sum(
                 [
                     data["weight"]
@@ -162,7 +163,7 @@ def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
                 sum_weights = sum(weights)
                 weights = [w / sum_weights for w in weights]
                 targets = [target for _, target, _ in out_edges]
-                next_node = np.random.choice(targets, p=weights)
+                next_node = random.choices(targets, weights=weights)[0]
                 weight_from_next_node_to_sequence = G_orig[next_node][sequence]["weight"] / sum(
                     [
                         data["weight"]
@@ -181,7 +182,7 @@ def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
         seq: np.mean(disassembly_indexes[seq]) for seq in disassembly_indexes.keys()
     }
     print(
-        f"\n Averaged DI: {sum(mean_disassembly_indexes.values()) / len(mean_disassembly_indexes.keys()):.2f}"
+        f"\n Average DI: {sum(mean_disassembly_indexes.values()) / len(mean_disassembly_indexes.keys()):.2f}"
     )
 
     return mean_disassembly_indexes

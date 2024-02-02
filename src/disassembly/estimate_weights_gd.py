@@ -24,23 +24,28 @@ class WeightEstimatorGD:
         self.n_iterations = n_iterations
         self.lam = lam
 
-    def run(self, true_dict: dict, verbose: bool):
+    def run(self, true_dict: dict, verbose: bool, parameters: dict = None):
         self.true_dict = true_dict
         self.keys = list(true_dict.keys())
         self.true_dict_vals = list(true_dict.values())
-        self.graph = self.create_graph()  # creates the graph from keys
+        if parameters:
+            self.parameters = parameters
+            self.graph = (
+                self.create_graph_from_parameters()
+            )  # creates the graph from params
+        else:
+            self.graph = self.create_graph()
 
         self.generated = {}
         self.losses = []
         self.weights = {}
 
-
         for iteration in range(self.n_iterations):
             guess, guess_df = self.generate_output(self.graph)
             self.generated[iteration] = guess
-            self.weights[iteration] = np.array([
-                data["weight"] for _, _, data in self.graph.edges(data=True)
-            ])
+            self.weights[iteration] = np.array(
+                [data["weight"] for _, _, data in self.graph.edges(data=True)]
+            )
             # Compute loss
             kl = KL(self.true_dict_vals, guess.values())
             reg = get_l2(self.graph) * self.lam
@@ -63,7 +68,6 @@ class WeightEstimatorGD:
             # Update graph
             self.graph = self.update_weights(gradient, grad_reg)
 
-            
             if loss < 0.01:
                 break
 
@@ -119,6 +123,50 @@ class WeightEstimatorGD:
             for key2 in self.keys:
                 if (key1 in key2) and (key1 != key2):
                     graph.add_edge(key2, key1, weight=np.random.uniform(0, 1))
+        # normalize
+        for node in graph.nodes():
+            out_edges = graph.out_edges(node, data=True)
+            total_out = sum(
+                [data["weight"] for _, _, data in graph.out_edges(node, data=True)]
+            )
+            for key, target, data in out_edges:
+                nx.set_edge_attributes(
+                    graph,
+                    {(key, target): {"weight": 0.75 * data["weight"] / total_out}},
+                )
+        return graph
+
+    def create_graph_from_parameters(self):
+        graph = nx.DiGraph()
+        graph.add_nodes_from([(k, {"layer": len(k)}) for k in self.keys])
+        for key1 in self.keys:
+            for key2 in self.keys:
+                if (key1 in key2) and (key1 != key2):
+                    if len(key1) == len(key2) - 1:
+                        p1_left = None
+                        p1_right = None
+                        w = self.parameters["exo"]
+                    elif key2.startswith(key1):
+                        p1_left = None
+                        p1_right = key1[-1]
+                        w = self.parameters["endo"][p1_right]
+                    elif key2.endswith(key1):
+                        p1_left = key2[-len(key1) - 1]
+                        p1_right = None
+                        w = self.parameters["endo"][p1_left]
+                    else:  # middle
+                        p1_left = key2[key2.find(key1) - 1]
+                        p1_right = key1[-1]
+                        w = (
+                            self.parameters["endo"][p1_left]
+                            * self.parameters["endo"][p1_right]
+                        )
+
+                    graph.add_edge(
+                        key2,
+                        key1,
+                        weight=w,
+                    )
         # normalize
         for node in graph.nodes():
             out_edges = graph.out_edges(node, data=True)
