@@ -258,8 +258,9 @@ def update_sequence_dict(
     # else:
     #     sequence_dict[source_sequence] -= 1
 
-    if sequence_dict[source_sequence] == 0:
-        sequence_dict.pop(source_sequence)
+    # if sequence_dict[source_sequence] == 0:
+    #    sequence_dict.pop(source_sequence)
+
     if target_sequence in sequence_dict.keys():
         sequence_dict[target_sequence] += 1
     else:
@@ -291,3 +292,131 @@ def accept_addition(length, iteration, min_length=4):
     if us[iteration % 1000] < a:
         return True
     return False
+
+
+def simulate_proteolysis_no_graph(
+    starting_sequence: str,
+    enzymes: enzyme_set = enzyme_set(
+        [
+            enzyme({"K": 1}, "protease_iv"),
+            enzyme({"K": 0.5, "R": 0.5}, "trypsin"),
+            enzyme({"V": 0.5, "I": 0.25, "A": 0.15, "T": 0.1}, "elne"),
+        ],
+        [3, 2, 3],  # activities
+        [1, 1, 3],  # abundances
+    ),
+    n_start: int = 10,
+    n_generate: int = 100,
+    endo_or_exo_probability: list = [0.5, 0.5],
+    verbose: bool = True,
+) -> dict:
+    
+
+    sequence_dict = {starting_sequence: n_start}
+    total_iterations = 0
+    n_generated_peptides = 0
+    exo_or_endos = np.random.choice(
+        ["endo", "exo"], size=n_generate * 100, p=endo_or_exo_probability
+    )
+    n_or_c_terms = np.random.choice(["n", "c"], size=n_generate * 100, p=[0.5, 0.5])
+
+
+
+    while n_generated_peptides < n_generate:
+        total_iterations += 1
+        if verbose:
+            print(
+                f"\r {n_generated_peptides} / {n_generate} ({total_iterations})",
+                end="",
+                flush=True,
+            )
+        exo_or_endo = exo_or_endos[total_iterations]
+
+        if exo_or_endo == "exo":
+            sequences_longer_than_4 = [s for s in sequence_dict.keys() if len(s) > 4]
+
+            seq_dict_keys = list(sequence_dict.keys())
+            sequence_to_chew = random.choices(
+                seq_dict_keys, weights=sequence_dict.values()
+            )[0]
+
+            if accept_addition(len(sequence_to_chew) - 1, n_generated_peptides):
+                n_generated_peptides += 1
+                n_or_c_term = n_or_c_terms[n_generate]
+                if n_or_c_term == "n":
+                    new_sequence = sequence_to_chew[1:]
+                else:
+                    new_sequence = sequence_to_chew[:-1]
+                sequence_dict = update_sequence_dict(
+                    sequence_dict, sequence_to_chew, new_sequence, endo_or_exo="exo"
+                )
+
+        elif exo_or_endo == "endo":
+            sequences_longer_than_4 = {
+                s: sequence_dict[s] for s in sequence_dict.keys() if len(s) > 4
+            }
+
+            sequence_frequencies = {}
+            for sequence in sequences_longer_than_4.keys():
+                n_cut_sites_in_sequence = 0
+                for aminoacid in enzymes.meta_enzyme.keys():
+                    n_cut_sites_in_sequence += (
+                        len(find_aminoacids_in_sequence(sequence, aminoacid))
+                        * enzymes.meta_enzyme[aminoacid]
+                    )
+                sequence_frequencies[sequence] = (
+                    n_cut_sites_in_sequence * sequences_longer_than_4[sequence]
+                )
+
+            sequence_to_cut = random.choices(
+                list(sequence_frequencies.keys()),
+                weights=[
+                    p / sum(sequence_frequencies.values())
+                    for p in sequence_frequencies.values()
+                ],
+            )[0]
+
+            index_to_cut = {}
+            for aminoacid in enzymes.meta_enzyme.keys():
+                indices_for_aminoacid = find_aminoacids_in_sequence(
+                    sequence_to_cut, aminoacid
+                )
+                for index in indices_for_aminoacid:
+                    if index != len(sequence_to_cut):
+                        index_to_cut[index] = enzymes.meta_enzyme[aminoacid]
+
+            # Perform two cuts
+            cutting_index1 = random.choices(
+                list(index_to_cut.keys()),
+                weights=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
+            )[0]
+
+            cutting_index2 = random.choices(
+                list(index_to_cut.keys()),
+                weights=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
+            )[0]
+
+            left = sequence_to_cut[: min(cutting_index1, cutting_index2) + 1]
+            middle = sequence_to_cut[
+                min(cutting_index1, cutting_index2)
+                + 1 : max(cutting_index1, cutting_index2)
+            ]
+            right = sequence_to_cut[
+                min(cutting_index1, cutting_index2) + len(middle) + 1 :
+            ]
+
+            for sequence in [left, right, middle]:
+                if accept_addition(len(sequence), n_generated_peptides) and (
+                    (not starting_sequence.startswith(sequence))
+                    and (not starting_sequence.endswith(sequence))
+                ):
+                    n_generated_peptides += 1
+                    sequence_dict = update_sequence_dict(
+                        sequence_dict, sequence_to_cut, sequence, endo_or_exo="endo"
+                    )
+
+    if verbose:
+        print(
+            f"\n{len(sequence_dict)} unique peptides. {sum(sequence_dict.values())} total"
+        )
+    return sequence_dict
