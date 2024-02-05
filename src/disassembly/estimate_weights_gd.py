@@ -174,9 +174,13 @@ class WeightEstimatorGD:
                 [data["weight"] for _, _, data in graph.out_edges(node, data=True)]
             )
             for key, target, data in out_edges:
+                if total_out == 0:
+                    w = 0
+                else:
+                    w = 0.75*data["weight"]/total_out
                 nx.set_edge_attributes(
                     graph,
-                    {(key, target): {"weight": 0.75 * data["weight"] / total_out}},
+                    {(key, target): {"weight": w}},
                 )
         return graph
 
