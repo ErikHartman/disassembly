@@ -44,7 +44,9 @@ class ParameterEstimator:
         self.loss_to_beat = KL(p, q) + KL(q, p)
         for i in range(n_iterations_endo):
             print(f"Iteration: {i}")
-
+            new_guess = self.generate_guess()
+            p, q = compare(self.true_dict, new_guess)
+            self.loss_to_beat = KL(p, q) + KL(q, p) # baseline
             for aa in self.parameters["endo"].keys():
                 _, new_loss = self.update_parameter(aa, lr_endo, verbose=True)
                 while new_loss < self.loss_to_beat:
@@ -59,6 +61,9 @@ class ParameterEstimator:
                         )
                 self.parameters["endo"][aa] -= lr_endo  # this resets the initial guess
 
+        new_guess = self.generate_guess()
+        p, q = compare(self.true_dict, new_guess)
+        self.loss_to_beat = KL(p, q) + KL(q, p) # baseline
         for i in range(n_iterations_exo):
             exo_diff = lr_exo * random.choice([-1, 1])
             self.parameters["exo"] = self.parameters["exo"] + exo_diff
