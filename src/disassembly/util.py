@@ -83,3 +83,38 @@ def plot_peptidome(protein: str, sequence_dict: dict, ax):
                     color=cmap(copy_number),
                 )
                 break
+
+
+import matplotlib.pyplot as plt
+def plot_di_correlation(true_dict, true_disassembly_indexes, estimated_disassembly_indexes):
+    fig = plt.figure(figsize=(5,5))
+    trues = []
+    estimated = []
+    c = []
+    for key in true_dict.keys():
+        if str(np.mean(estimated_disassembly_indexes[key])) == "nan":
+            print(key)
+            continue
+        trues.append((true_disassembly_indexes[key]))
+        # ys_e.append((estimated_disassembly_indexes[key]))
+        estimated.append(estimated_disassembly_indexes[key])
+        c.append(true_dict[key])
+    regress = np.polyfit(trues, estimated, 4)
+    max_= max(trues, estimated)
+    plt.plot(
+        np.linspace(0, max(max_)),
+        regress[0] * np.linspace(0, max(max_))**4 +
+         regress[1] * np.linspace(0, max(max_))**3 +
+          regress[2] * np.linspace(0, max(max_))**2 +
+           regress[3] * np.linspace(0, max(max_)) +
+            regress[4],
+        label="fitted line",
+        color="red"
+    )
+    plt.plot(
+        np.linspace(0, max(max_)), np.linspace(0, max(max_)), color="gray", label="y=x"
+    )
+    plt.scatter(
+        trues, estimated, c=c, cmap="coolwarm", alpha=0.5
+    )
+    plt.legend()
