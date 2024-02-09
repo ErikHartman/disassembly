@@ -36,7 +36,7 @@ a, shape, scale = 10, 1, 5
 g = gamma(a=a, scale=scale, loc=shape)
 x = np.linspace(0, 100)
 s = g.pdf(x)
-us = np.random.uniform(0, 1, size=1000)
+us = np.random.uniform(0, 1, size=10000)
 
 
 class enzyme:
@@ -131,12 +131,7 @@ def simulate_proteolysis(
                 seq_dict_keys, weights=sequence_dict.values()
             )[0]
 
-            if accept_condition:
-                accept = accept_addition(
-                    len(sequence_to_chew) - 1, n_generated_peptides
-                )
-            else:
-                accept = len(sequence_to_chew) > 5
+            accept = accept_addition(len(sequence_to_chew) - 1, n_generated_peptides)
 
             if accept:
                 n_generated_peptides += 1
@@ -162,7 +157,7 @@ def simulate_proteolysis(
             for sequence in sequences_longer_than_12.keys():
                 n_cut_sites_in_sequence = 0
                 for aminoacid in enzymes.meta_enzyme.keys():
-                    if (enzymes.meta_enzyme[aminoacid] != 0):
+                    if enzymes.meta_enzyme[aminoacid] != 0:
                         n_cut_sites_in_sequence += (
                             len(find_aminoacids_in_sequence(sequence, aminoacid))
                             * enzymes.meta_enzyme[aminoacid]
@@ -190,33 +185,57 @@ def simulate_proteolysis(
                         index_to_cut[index] = enzymes.meta_enzyme[aminoacid]
 
             # Perform two cuts
-            cutting_indexes = random.choices(
-                list(index_to_cut.keys()),
-                weights=[p / sum(index_to_cut.values()) for p in index_to_cut.values()],
-                k = 2
+            # Perform two cuts
+            cutting_index1 = int(
+                random.choices(
+                    list(index_to_cut.keys()),
+                    weights=[
+                        p / sum(index_to_cut.values()) for p in index_to_cut.values()
+                    ],
+                )[0]
             )
 
-            cutting_index1 = cutting_indexes[0]
-            cutting_index2 = cutting_indexes[1]
-            
+            a, shape, scale = 5.5, 8, 4.5
+            g = gamma(a=a, scale=scale, loc=shape)
+            for index in index_to_cut.keys():
+                index_to_cut[index] = (
+                    index_to_cut[index] * g.pdf(abs(index - cutting_index1)) + 1e-8
+                )
+
+            cutting_index2 = int(
+                random.choices(
+                    list(index_to_cut.keys()),
+                    weights=[
+                        p / sum(index_to_cut.values()) for p in index_to_cut.values()
+                    ],
+                )[0]
+            )
+
             left = sequence_to_cut[: min(cutting_index1, cutting_index2) + 1]
             middle = sequence_to_cut[
-                min(cutting_index1, cutting_index2)
-                + 1 : max(cutting_index1, cutting_index2)
+                min(cutting_index1, cutting_index2) : max(
+                    cutting_index1, cutting_index2
+                )
             ]
-            right = sequence_to_cut[
-                min(cutting_index1, cutting_index2) + len(middle) + 1 :
-            ]
+            right = sequence_to_cut[max(cutting_index1, cutting_index2) + 1 :]
 
+            # Accept middle
+            n_generated_peptides += 1
+            sequence_dict = update_sequence_dict(
+                sequence_dict, sequence_to_cut, middle, endo_or_exo="endo"
+            )
+            if graph:
+                sequence_graph = update_sequence_graph(
+                    sequence_graph, sequence_to_cut, middle
+                )
             # Check if accept others
-            for sequence in [left, right, middle]:
-                if accept_condition:
-                    accept = accept_addition(len(sequence), n_generated_peptides) and (
-                        (not starting_sequence.startswith(sequence))
-                        and (not starting_sequence.endswith(sequence))
-                    )
-                else:
-                    accept = len(sequence) > 5
+            for sequence in [left, right]:
+
+                accept = accept_addition(len(sequence) - 1, n_generated_peptides) and (
+                    (not starting_sequence.startswith(sequence))
+                    and (not starting_sequence.endswith(sequence))
+                )
+
                 if accept:
                     n_generated_peptides += 1
                     sequence_dict = update_sequence_dict(
@@ -226,6 +245,7 @@ def simulate_proteolysis(
                         sequence_graph = update_sequence_graph(
                             sequence_graph, sequence_to_cut, sequence
                         )
+
     if graph:
         for node in sequence_graph.nodes():
             sequence_graph.add_edge(node, node, weight=sequence_dict[node])
@@ -309,6 +329,6 @@ def accept_addition(length, iteration, min_length=4):
 
     a = g.pdf(length) / max(s)
 
-    if us[iteration % 1000] < a:
+    if us[iteration % 10000] < a:
         return True
     return False

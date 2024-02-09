@@ -13,14 +13,9 @@ from disassembly.util import KL, normalize_dict, get_trend
 
 def estimate_weights(
     P: dict,
-    meta_enzyme: dict = {
-        amino_acid: 1 / len(amino_acids) for amino_acid in amino_acids.values()
-    },
-    exo_mult_factor: float = 10,
     lr: float = 0.1,
     n_iterations: int = 100,
-    alpha: float = 0.001,
-    early_stop: bool = True
+    early_stop: bool = True,
 ):
     keys = list(P.keys())
     P = normalize_dict(P)
@@ -30,7 +25,7 @@ def estimate_weights(
         for key2 in keys:
             if key1 == key2:
                 G.add_edge(key2, key1, weight=np.random.uniform(0.5, 1))
-            elif key1 in key2:# key 1 = ABC, key 2 = ABCD
+            elif key1 in key2:  # key 1 = ABC, key 2 = ABCD
                 G.add_edge(key2, key1, weight=np.random.uniform(0, 1))
 
     for node in G.nodes():
@@ -55,30 +50,29 @@ def estimate_weights(
 
         print(
             f"\r {i} / {n_iterations} | {kl:.2f}, mean: {np.mean(kls[-25:]):.2f} | {trend} | nz: {len(np.nonzero(weights[:, i-1])[0])}",
-            end="", flush=True
+            end="",
+            flush=True,
         )
 
-
-        if lr_cooldown <= 0 and (trend == "Increasing" or trend=="Plateau") and lr > 0.0001:
+        if (
+            lr_cooldown <= 0
+            and (trend == "Increasing" or trend == "Plateau")
+            and lr > 0.0001
+        ):
             lr_cooldown = 75
             lr = lr / 2
             print(f"\nLearning rate decreased to {lr}")
 
-        G = update_weights(
-            G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alpha
-        )
+        G = update_weights(G, P, p_generated, lr)
 
         kls.append(kl)
         weights[:, i] = [data["weight"] for _, _, data in G.edges(data=True)]
 
-        if i>200 and get_trend(kls[-100:]) == "Plateau" and early_stop:
+        if i > 200 and get_trend(kls[-100:]) == "Plateau" and early_stop:
             break
 
-                
         if np.mean(kls[-100:]) < 0.01 and early_stop:
             break
-
-
 
     return G, kls, generated, weights
 
@@ -111,8 +105,9 @@ def generate_guess(G: nx.DiGraph, keys):
                     p_target = p_generated[target]
                 w_source_target = G[source][target]["weight"]
                 p_generated[source] += w_source_target * p_target
-    guess = {keys[i] : p_generated[longest_key][i] for i in range(len(keys))}
+    guess = {keys[i]: p_generated[longest_key][i] for i in range(len(keys))}
     return guess
+
 
 def create_one_hot(keys, key):
     one_hot = np.zeros(len(keys))
@@ -131,8 +126,7 @@ def get_solvable(out_edges, p_generated):
     return solvable
 
 
-
-def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alpha):
+def update_weights(G, P, p_generated, lr):
     P = normalize_dict(P)  # observerade fördelningen
     p_generated = normalize_dict(p_generated)  # gissningen
     for key in P.keys():
@@ -145,24 +139,7 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
 
             add_to_weight = diff * lr
 
-            if len(key) - len(target) == 1:
-                add_to_weight *= exo_mult_factor
-                mult_to_new_weight = 1
-
-            elif key == target:
-                mult_to_new_weight = 1
-
-            elif key.startswith(target):
-                p1 = key[len(target) - 1]
-                #mult_to_new_weight = meta_enzyme[p1]
-
-            else:
-                p1 = key[-len(target) - 1]
-                #mult_to_new_weight = meta_enzyme[p1]
-
             new_weight = data["weight"] + add_to_weight
-            #new_weight += (np.abs(1/len(out_edges) - new_weight) *  lr) # force to move away from uniform
-            #new_weight = new_weight + (add_to_weight*mult_to_new_weight) # increase weight for high p1
             new_weight = max(0, new_weight)
 
             nx.set_edge_attributes(G, {(key, target): {"weight": new_weight}})
@@ -177,17 +154,18 @@ def update_weights(G, kl, P, p_generated, lr, meta_enzyme, exo_mult_factor, alph
                     G, {(key, target): {"weight": data["weight"] / total_out}}
                 )
         else:
-            weights = np.random.uniform(0.01,1,len(out_edges))
+            weights = np.random.uniform(0.01, 1, len(out_edges))
             total_out = sum(weights)
             for edge, weight in zip(out_edges, weights):
-                key, target, _  = edge
-                nx.set_edge_attributes(G, {(key, target) : {"weight": weight/total_out}})
+                key, target, _ = edge
+                nx.set_edge_attributes(
+                    G, {(key, target): {"weight": weight / total_out}}
+                )
 
     return G
 
 
-def sigmoid(x, temperature=1.0):
-    return 1 / (1 + np.exp(-(x - 0.5) / temperature))
+
 
 """
 

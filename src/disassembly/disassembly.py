@@ -22,7 +22,7 @@ def get_disassembly(P: dict, disassembly_indexes: dict):
     for sequence in P.keys():
         if P[sequence]  > 0:
             disassembly += math.e ** (disassembly_indexes[sequence]) * (
-                P[sequence]  / n_t
+                (P[sequence] - 1)  / n_t
             )
     return disassembly
 
