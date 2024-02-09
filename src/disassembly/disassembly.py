@@ -19,10 +19,12 @@ def get_disassembly(P: dict, disassembly_indexes: dict):
     disassembly = 0
     n_t = sum(P.values())  # total number of copies in ensemble
 
+    min_n = min(P.values()) # The least abundant particles in the ensemble do not add to ensemble 
+
     for sequence in P.keys():
         if P[sequence]  > 0:
             disassembly += math.e ** (disassembly_indexes[sequence]) * (
-                (P[sequence] - 1)  / n_t
+                (P[sequence] - min_n)  / n_t
             )
     return disassembly
 

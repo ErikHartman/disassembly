@@ -18,11 +18,13 @@ class WeightEstimatorGD:
         self,
         lr: float,
         n_iterations: int,
-        lam: float,
+        lam1: float = 0,
+        lam2: float = 0,
     ) -> None:
         self.lr = lr
         self.n_iterations = n_iterations
-        self.lam = lam
+        self.lam1 = lam1
+        self.lam2 = lam2
 
     def run(self, true_dict: dict, verbose: bool, parameters: dict = None):
         self.true_dict = true_dict
@@ -48,7 +50,8 @@ class WeightEstimatorGD:
             )
             # Compute loss
             kl = KL(self.true_dict_vals, guess.values())
-            reg = get_l2(self.graph) * self.lam
+            reg = get_l1(self.graph) * self.lam1
+            reg += get_l2(self.graph) * self.lam2
             loss = kl + reg
             self.losses.append(loss)
 
@@ -63,7 +66,7 @@ class WeightEstimatorGD:
             dp_dw = self.compute_dp_dw(guess_df)
             dL_dp = self.compute_dL_dp(self.true_dict_vals, list(guess.values()))
             gradient = self.compute_dL_dw(dL_dp, dp_dw)
-            grad_reg = self.get_grad_reg_l2(self.graph)
+            grad_reg = self.get_grad_reg(self.graph)
 
             # Update graph
             self.graph = self.update_weights(gradient, grad_reg)
@@ -274,7 +277,7 @@ class WeightEstimatorGD:
             new_guess, _ = self.generate_output(new_graph)
 
             new_loss = KL(self.true_dict_vals, list(new_guess.values())) + (
-                get_l2(new_graph) * self.lam
+                get_l2(new_graph) * self.lam2 + get_l1(new_graph) * self.lam1
             )
 
             if new_loss <= old_loss:
@@ -298,12 +301,13 @@ class WeightEstimatorGD:
             dL_dw[edge] = np.sum(val * dL_dp)
         return dL_dw
 
-    def get_grad_reg_l2(self, graph):
+    def get_grad_reg(self, graph):
         grad_reg = {}
         for source in graph.nodes():
             for _, target, data in graph.out_edges(source, data=True):
-                grad_reg[(source, target)] = 2 * data["weight"] * self.lam  # + self.lam
+                grad_reg[(source, target)] = 2 * data["weight"] * self.lam2  + self.lam2
         return grad_reg
+
 
     def drop_weights(self, threshold: float = 0.01):
         """

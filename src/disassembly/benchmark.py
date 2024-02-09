@@ -9,24 +9,17 @@ import matplotlib.patches as mpatches
 
 
 class Benchmark:
+    """
+    Benchmarking disassembly methods
+    
+    
+    """
 
     def __init__(self):
-        self.results = {
-            "real": {},
-            "gd": {},
-            "alg": {},
-            "param_gd": {},
-            "param_alg": {},
-        }
+        self.results = {}
         self.simulated_peptidomes = {}
         self.simulated_graphs = {}
-        self.generated_graphs = {
-            "real": {},
-            "gd": {},
-            "alg": {},
-            "param_gd": {},
-            "param_alg": {},
-        }
+        self.generated_graphs = {}
 
     def simulate_degradation(
         self,
@@ -46,6 +39,8 @@ class Benchmark:
         self.iterations = iterations
         self.enzyme_sets = enzyme_sets
         self.protein = protein
+
+        self.results["real"] = {}
 
         if not enzyme_names:
             self.enzyme_names = list(range(len(enzyme_sets)))
@@ -81,23 +76,30 @@ class Benchmark:
 
     def estimate_weights(
         self,
-        method: str = "gd",
-        lam: float = 0,
+        method: str = "gd",  # gd, alg
+        lam1: float = 0,
+        lam2: float = 0,
         n_iterations=100,
-        lr=0.1,  # gd, alg,
+        lr=0.1,
         parameter_estimator=False,
         n_iterations_endo=1,
         n_iterations_exo=10,
         n_generate=500,
         di_mc_n=10000,
         exo=0.2,
+        method_name=None,
     ):
-        method_name = method
-        if parameter_estimator:
-            method_name += "_param"
+
+        if not method_name:
+            method_name = method
+
+        self.results[method_name] = {}
+        self.generated_graphs[method_name] = {}
 
         if method == "gd":
-            wegd = WeightEstimatorGD(lr=lr, n_iterations=n_iterations, lam=lam)
+            wegd = WeightEstimatorGD(
+                lr=lr, n_iterations=n_iterations, lam1=lam1, lam2=lam2
+            )
         for enzyme_name in self.enzyme_names:
             self.results[method_name][enzyme_name] = {}
             self.generated_graphs[method_name][enzyme_name] = {}
@@ -152,7 +154,7 @@ class Benchmark:
         method_name="gd",
         colors=["darkblue", "purple", "pink", "gray"],
     ):
-        if not len(colors) == len(self.enzyme_names):
+        if len(colors) < len(self.enzyme_names):
             raise ValueError(
                 "Length of colors must be equal to or longer than length of enzymes"
             )
