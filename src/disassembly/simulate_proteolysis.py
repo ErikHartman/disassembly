@@ -28,6 +28,7 @@ import networkx as nx
 import numpy as np
 from disassembly.util import amino_acids
 import random
+import math
 
 
 from scipy.stats import gamma
@@ -96,7 +97,6 @@ def simulate_proteolysis(
     endo_or_exo_probability: list = [0.5, 0.5],
     verbose: bool = True,
     graph: bool = True,
-    accept_condition: bool = True,
 ) -> (dict, nx.DiGraph):
     sequence_dict = {starting_sequence: n_start}
 
@@ -197,10 +197,19 @@ def simulate_proteolysis(
 
             a, shape, scale = 5.5, 8, 4.5
             g = gamma(a=a, scale=scale, loc=shape)
-            for index in index_to_cut.keys():
-                index_to_cut[index] = (
-                    index_to_cut[index] * g.pdf(abs(index - cutting_index1)) + 1e-8
-                )
+
+            if sum(index_to_cut.values()) == 0:
+                for index in index_to_cut.keys():
+                    index_to_cut[index] = (
+                        g.pdf(abs(index - cutting_index1))
+                    )
+            else:
+                for index in index_to_cut.keys():
+                    index_to_cut[index] = (
+                        index_to_cut[index] * g.pdf(abs(index - cutting_index1))
+                    )
+
+
 
             cutting_index2 = int(
                 random.choices(
@@ -213,21 +222,22 @@ def simulate_proteolysis(
 
             left = sequence_to_cut[: min(cutting_index1, cutting_index2) + 1]
             middle = sequence_to_cut[
-                min(cutting_index1, cutting_index2) : max(
+                min(cutting_index1, cutting_index2) + 1 : max(
                     cutting_index1, cutting_index2
                 )
             ]
             right = sequence_to_cut[max(cutting_index1, cutting_index2) + 1 :]
 
             # Accept middle
-            n_generated_peptides += 1
-            sequence_dict = update_sequence_dict(
-                sequence_dict, sequence_to_cut, middle, endo_or_exo="endo"
-            )
-            if graph:
-                sequence_graph = update_sequence_graph(
-                    sequence_graph, sequence_to_cut, middle
+            if len(middle) > 5:
+                n_generated_peptides += 1
+                sequence_dict = update_sequence_dict(
+                    sequence_dict, sequence_to_cut, middle, endo_or_exo="endo"
                 )
+                if graph:
+                    sequence_graph = update_sequence_graph(
+                        sequence_graph, sequence_to_cut, middle
+                    )
             # Check if accept others
             for sequence in [left, right]:
 

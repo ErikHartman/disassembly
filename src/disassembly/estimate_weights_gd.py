@@ -163,13 +163,13 @@ class WeightEstimatorGD:
                         w = (
                             self.parameters["endo"][p1_left]
                             * self.parameters["endo"][p1_right]
+                        ) ** 0.5
+                    if w > 0.01:
+                        graph.add_edge(
+                            key2,
+                            key1,
+                            weight=w,
                         )
-
-                    graph.add_edge(
-                        key2,
-                        key1,
-                        weight=w,
-                    )
         # normalize
         for node in graph.nodes():
             out_edges = graph.out_edges(node, data=True)
@@ -180,7 +180,7 @@ class WeightEstimatorGD:
                 if total_out == 0:
                     w = 0
                 else:
-                    w = 0.75*data["weight"]/total_out
+                    w = 0.75 * data["weight"] / total_out
                 nx.set_edge_attributes(
                     graph,
                     {(key, target): {"weight": w}},
@@ -283,7 +283,7 @@ class WeightEstimatorGD:
             if new_loss <= old_loss:
                 return new_graph
 
-            if k < 1e-15:
+            if k < 1e-8:
                 return old_graph
 
             k = k / 2
@@ -305,9 +305,8 @@ class WeightEstimatorGD:
         grad_reg = {}
         for source in graph.nodes():
             for _, target, data in graph.out_edges(source, data=True):
-                grad_reg[(source, target)] = 2 * data["weight"] * self.lam2  + self.lam2
+                grad_reg[(source, target)] = 2 * data["weight"] * self.lam2 + self.lam2
         return grad_reg
-
 
     def drop_weights(self, threshold: float = 0.01):
         """

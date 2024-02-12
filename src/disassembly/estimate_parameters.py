@@ -27,7 +27,7 @@ class ParameterEstimator:
         true_dict: dict,
         n_iterations_endo=3,
         n_iterations_exo=20,
-        lr_endo=0.5,
+        lr_endo=0.25,
         lr_exo=0.05,
         n_generate: int = 500,
     ):
@@ -42,6 +42,7 @@ class ParameterEstimator:
         starting_guess = self.generate_guess()
         p, q = compare(self.true_dict, starting_guess)
         self.loss_to_beat = KL(p, q) + KL(q, p)
+        true_n_peptides = sum(true_dict.values())
         for i in range(n_iterations_endo):
             print(f"Iteration: {i}")
             new_guess = self.generate_guess()
@@ -65,7 +66,8 @@ class ParameterEstimator:
         p, q = compare(self.true_dict, new_guess)
         self.loss_to_beat = KL(p, q) + KL(q, p)  # baseline
         for i in range(n_iterations_exo):
-            exo_diff = lr_exo * random.choice([-1, 1])
+            guess_n_peptides = sum(self.generate_guess().values())
+            exo_diff = lr_exo * (1 if true_n_peptides > guess_n_peptides else -1)
             self.parameters["exo"] = self.parameters["exo"] + exo_diff
             new_guess = self.generate_guess()
             p, q = compare(self.true_dict, new_guess)
@@ -77,7 +79,7 @@ class ParameterEstimator:
                 self.loss_to_beat = new_loss
                 self.best_losses.append(new_loss)
 
-            print(f" exo: {new_loss:.2f} | {self.loss_to_beat:.2f}")
+            print(f" exo: {new_loss:.2f} | {self.loss_to_beat:.2f} ({self.parameters['exo']:.2f})")
         return self.parameters
 
     def update_parameter(self, aa: str, e: float, verbose: bool = False):
@@ -89,7 +91,7 @@ class ParameterEstimator:
             print(f"\t{aa}: {new_loss:.2f} | {self.loss_to_beat:.2f}")
         return self.parameters, new_loss
 
-    def generate_guess(self):
+    def generate_guess(self) -> dict:
         """
         Generates a guess from parameters
         """

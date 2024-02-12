@@ -1,5 +1,5 @@
 from disassembly.simulate_proteolysis import simulate_proteolysis
-from disassembly.estimate_weights import estimate_weights
+from disassembly.estimate_weights_alg import estimate_weights
 from disassembly.disassembly import get_disassembly, get_disassembly_indexes_mc
 from disassembly.estimate_weights_gd import WeightEstimatorGD
 from disassembly.estimate_parameters import ParameterEstimator

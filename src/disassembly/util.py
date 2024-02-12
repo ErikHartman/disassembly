@@ -99,18 +99,9 @@ def plot_di_correlation(true_dict, true_disassembly_indexes, estimated_disassemb
         # ys_e.append((estimated_disassembly_indexes[key]))
         estimated.append(estimated_disassembly_indexes[key])
         c.append(true_dict[key])
-    regress = np.polyfit(trues, estimated, 4)
+
     max_= max(trues, estimated)
-    plt.plot(
-        np.linspace(0, max(max_)),
-        regress[0] * np.linspace(0, max(max_))**4 +
-         regress[1] * np.linspace(0, max(max_))**3 +
-          regress[2] * np.linspace(0, max(max_))**2 +
-           regress[3] * np.linspace(0, max(max_)) +
-            regress[4],
-        label="fitted line",
-        color="red"
-    )
+   
     plt.plot(
         np.linspace(0, max(max_)), np.linspace(0, max(max_)), color="gray", label="y=x"
     )

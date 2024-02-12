@@ -20,7 +20,7 @@ from disassembly.util import normalize_dict
 def get_p1(graph: nx.DiGraph, N_particles: int = 10000):
     graph.remove_edges_from(nx.selfloop_edges(graph))
 
-    p1_dict = {}  # endo p1
+    p1_endo = {}  # endo p1
     p1_exo = {}
     n_endo = 0
     n_exo = 0
@@ -40,7 +40,9 @@ def get_p1(graph: nx.DiGraph, N_particles: int = 10000):
             next_node = np.random.choice(targets, p=weights)
 
             if len(next_node) == len(sequence) - 1:
+
                 n_exo += 1
+
                 if sequence.startswith(next_node):
                     p1 = sequence[len(next_node) - 1]
                     if p1 in p1_exo.keys():
@@ -55,39 +57,43 @@ def get_p1(graph: nx.DiGraph, N_particles: int = 10000):
                     else:
                         p1_exo[p1] = 1
             else:
+
                 n_endo += 1
                 if sequence.startswith(next_node):
                     p1 = sequence[len(next_node) - 1]
-                    if p1 in p1_dict.keys():
-                        p1_dict[p1] = p1_dict[p1] + 1
+                    if p1 in p1_endo.keys():
+                        p1_endo[p1] = p1_endo[p1] + 1
                     else:
-                        p1_dict[p1] = 1
+
+                        p1_endo[p1] = 1
 
                 elif sequence.endswith(next_node):
                     p1 = sequence[-len(next_node) - 1]
 
-                    if p1 in p1_dict.keys():
-                        p1_dict[p1] = p1_dict[p1] + 1
+                    if p1 in p1_endo.keys():
+
+                        p1_endo[p1] = p1_endo[p1] + 1
                     else:
-                        p1_dict[p1] = 1
+                        p1_endo[p1] = 1
 
                 else:
                     p1_left = sequence[sequence.find(next_node) - 1]
-                    if p1_left in p1_dict.keys():
-                        p1_dict[p1_left] = p1_dict[p1_left] + 1
+                    if p1_left in p1_endo.keys():
+                        p1_endo[p1_left] = p1_endo[p1_left] + 1
                     else:
-                        p1_dict[p1_left] = 1
+                        p1_endo[p1_left] = 1
 
                     p1_right = next_node[-1]
-                    if p1_right in p1_dict.keys():
-                        p1_dict[p1_right] = p1_dict[p1_right] + 1
+                    if p1_right in p1_endo.keys():
+                        p1_endo[p1_right] = p1_endo[p1_right] + 1
                     else:
-                        p1_dict[p1_right] = 1
+                        p1_endo[p1_right] = 1
+
 
             sequence = next_node
-    p1_dict = normalize_dict(p1_dict)
+    p1_endo = normalize_dict(p1_endo)
     p1_exo = normalize_dict(p1_exo)
-    return p1_dict, p1_exo, n_exo, n_endo
+    return p1_endo, p1_exo, n_endo, n_exo
 
 
 """
