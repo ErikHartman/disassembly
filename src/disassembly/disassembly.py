@@ -8,7 +8,7 @@ import networkx as nx
 import math
 import numpy as np
 import random
-
+from disassembly.util import normalize_dict
 
 
 def get_disassembly(P: dict, disassembly_indexes: dict):
@@ -17,7 +17,9 @@ def get_disassembly(P: dict, disassembly_indexes: dict):
     disassembly_indexes is a dict of {object:disassembly index}
     """
     disassembly = 0
-    n_t = sum(P.values())  # total number of copies in ensemble
+    P = normalize_dict(P)
+
+    n_t = sum(P.values())  # total number of copies in ensemble. Will equal 1 since normalized.
 
     min_n = min(P.values()) # The least abundant particles in the ensemble do not add to ensemble 
 

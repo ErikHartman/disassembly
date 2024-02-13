@@ -57,7 +57,7 @@ class WeightEstimatorGD:
 
             if verbose:
                 print(
-                    f"\r {iteration} / {self.n_iterations} | {loss:.2f}, kl: {kl:.2f}, reg: {reg:.2f}  | nz: { np.sum( self.weights[iteration] > 0.01 )} | ",
+                    f"\r {iteration} / {self.n_iterations} | {loss:.2f}, kl: {kl:.2f}, reg: {reg:.2f}  | nz: { np.sum( self.weights[iteration] > 0.0 )} | ",
                     end="",
                     flush=True,
                 )
@@ -94,8 +94,11 @@ class WeightEstimatorGD:
             ]
             for source in graph.nodes()
         }
-
+        n = 0
         while len(p_generated.keys()) < len(self.keys):
+            n += 1
+            if n > 10000:
+                print(p_generated.keys(), self.keys)
             solvables = get_solvable(out_edges, p_generated)
             for solvable in solvables:
                 p_generated[solvable] = np.zeros(len(self.keys))
@@ -305,7 +308,7 @@ class WeightEstimatorGD:
         grad_reg = {}
         for source in graph.nodes():
             for _, target, data in graph.out_edges(source, data=True):
-                grad_reg[(source, target)] = 2 * data["weight"] * self.lam2 + self.lam2
+                grad_reg[(source, target)] = 2 * data["weight"] * self.lam2 + self.lam1
         return grad_reg
 
     def drop_weights(self, threshold: float = 0.01):

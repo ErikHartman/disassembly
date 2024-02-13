@@ -6,6 +6,10 @@ from disassembly.estimate_parameters import ParameterEstimator
 import matplotlib.pyplot as plt
 from disassembly.util import get_nrmse
 import matplotlib.patches as mpatches
+import seaborn as sns
+import pandas as pd
+import math
+import networkx as nx
 
 
 class Benchmark:
@@ -28,7 +32,7 @@ class Benchmark:
         n_generate: int = 500,
         iterations: int = 5,
         n_start: int = 3,
-        endo_or_exo_probability: list = [0.5, 0.5],
+        endo_or_exo_probability: list = [0.9, 0.1],
         enzyme_names: list = None,
         di_mc_n=10000,
     ):
@@ -39,6 +43,7 @@ class Benchmark:
         self.iterations = iterations
         self.enzyme_sets = enzyme_sets
         self.protein = protein
+        self.n_generate = n_generate
 
         self.results["real"] = {}
 
@@ -58,7 +63,7 @@ class Benchmark:
                     protein,
                     enzyme_set,
                     n_start=n_start,
-                    n_generate=n_generate,
+                    n_generate=self.n_generate,
                     endo_or_exo_probability=endo_or_exo_probability,
                 )
                 self.simulated_peptidomes[enzyme_name][iteration] = simulated_peptidome
@@ -84,7 +89,6 @@ class Benchmark:
         parameter_estimator=False,
         n_iterations_endo=1,
         n_iterations_exo=10,
-        n_generate=500,
         di_mc_n=10000,
         exo=0.2,
         method_name=None,
@@ -101,6 +105,7 @@ class Benchmark:
                 lr=lr, n_iterations=n_iterations, lam1=lam1, lam2=lam2
             )
         for enzyme_name in self.enzyme_names:
+            print(f"--{enzyme_name}---")
             self.results[method_name][enzyme_name] = {}
             self.generated_graphs[method_name][enzyme_name] = {}
             for iteration in range(self.iterations):
@@ -119,12 +124,13 @@ class Benchmark:
                             self.simulated_peptidomes[enzyme_name][iteration],
                             n_iterations_endo=n_iterations_endo,
                             n_iterations_exo=n_iterations_exo,
-                            n_generate=n_generate,
+                            n_generate=self.n_generate,
                         )
 
                         parameters = pe.parameters
                     else:
                         parameters = None
+
                     G = wegd.run(
                         self.simulated_peptidomes[enzyme_name][iteration],
                         verbose=True,
@@ -202,3 +208,24 @@ class Benchmark:
             ncol=4,
             title="Enzyme complexity",
         )
+
+    def plot_d_error(self):
+        df = {"alg": [], "enzyme": [], "d": []}
+        for alg in self.results.keys():
+            if alg == "real":
+                continue
+            for enzyme_name in self.enzyme_names:
+                for iteration in range(5):
+                    df["alg"].append(alg)
+                    df["enzyme"].append(enzyme_name)
+                    df["d"].append(
+                        math.abs(
+                            self.results["real"][enzyme_name][iteration]["d"]
+                            - self.results[alg][enzyme_name][iteration]["d"]
+                        )
+                    )
+        df = pd.DataFrame(df)
+        sns.boxplot(df, x="enzyme", y="d", hue="alg")
+
+
+        # TODO: plot correlation between simulated and generated graph weights
