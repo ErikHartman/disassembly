@@ -15,8 +15,8 @@ import networkx as nx
 class Benchmark:
     """
     Benchmarking disassembly methods
-    
-    
+
+
     """
 
     def __init__(self):
@@ -77,6 +77,7 @@ class Benchmark:
                 self.results["real"][enzyme_name][iteration]["d"] = get_disassembly(
                     self.simulated_peptidomes[enzyme_name][iteration],
                     self.results["real"][enzyme_name][iteration]["di"],
+                    exclude=self.protein,
                 )
 
     def estimate_weights(
@@ -150,6 +151,7 @@ class Benchmark:
                     get_disassembly(
                         self.simulated_peptidomes[enzyme_name][iteration],
                         self.results[method_name][enzyme_name][iteration]["di"],
+                        exclude=self.protein,
                     )
                 )
 
@@ -226,6 +228,5 @@ class Benchmark:
                     )
         df = pd.DataFrame(df)
         sns.boxplot(df, x="enzyme", y="d", hue="alg")
-
 
         # TODO: plot correlation between simulated and generated graph weights

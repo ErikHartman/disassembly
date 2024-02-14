@@ -76,7 +76,7 @@ class WeightEstimatorGD:
 
         return self.graph
 
-    def generate_output(self, graph: nx.DiGraph) -> (dict, pd.DataFrame):
+    def generate_output(self, graph: nx.DiGraph):
         """
         Generates an output dict from a graph
         """

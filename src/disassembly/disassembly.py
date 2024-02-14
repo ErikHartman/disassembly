@@ -3,7 +3,6 @@ Functions for estimating disassembly.
 
 """
 
-
 import networkx as nx
 import math
 import numpy as np
@@ -11,23 +10,35 @@ import random
 from disassembly.util import normalize_dict
 
 
-def get_disassembly(P: dict, disassembly_indexes: dict):
+def get_disassembly(
+    P: dict, disassembly_indexes: dict, exclude: str = None, exp: bool = True
+):
     """
     P is a dict of {object:copy_number}
     disassembly_indexes is a dict of {object:disassembly index}
+    exclude possible "origin string"
     """
     disassembly = 0
+    if exclude:
+        P.pop(exclude)
+
     P = normalize_dict(P)
 
-    n_t = sum(P.values())  # total number of copies in ensemble. Will equal 1 since normalized.
+    n_t = sum(
+        P.values()
+    )  # total number of copies in ensemble. Will equal 1 since normalized.
 
-    min_n = min(P.values()) # The least abundant particles in the ensemble do not add to ensemble 
+    min_n = min(
+        P.values()
+    )  # The least abundant particles in the ensemble do not add to ensemble
 
     for sequence in P.keys():
-        if P[sequence]  > 0:
+        if exp:
             disassembly += math.e ** (disassembly_indexes[sequence]) * (
-                (P[sequence] - min_n)  / n_t
+                (P[sequence] - min_n) / n_t
             )
+        else:
+            disassembly += disassembly_indexes[sequence] * ((P[sequence] - min_n) / n_t)
     return disassembly
 
 
@@ -88,7 +99,9 @@ def get_disassembly_indexes_mc(G: nx.DiGraph, N_particles: int):
                 sequence = next_node
                 steps += 1
 
-    mean_disassembly_indexes = {seq: np.mean(disassembly_indexes[seq]) for seq in disassembly_indexes.keys()}
+    mean_disassembly_indexes = {
+        seq: np.mean(disassembly_indexes[seq]) for seq in disassembly_indexes.keys()
+    }
     print(
         f"\n Averaged DI: {sum(mean_disassembly_indexes.values()) / len(mean_disassembly_indexes.keys()):.2f}"
     )
@@ -96,14 +109,13 @@ def get_disassembly_indexes_mc(G: nx.DiGraph, N_particles: int):
     return mean_disassembly_indexes
 
 
-
 def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
     """
     For joint disassembly spaces we need to consider the contribution of a particle
     to the assembly path.
-    
+
     """
-    
+
     G.remove_edges_from(nx.selfloop_edges(G))
     G_orig = G.copy()
     terminal_nodes = [node for node in G.nodes() if G.out_degree(node) == 0]
@@ -111,13 +123,12 @@ def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
 
     disassembly_indexes = {sequence: [] for sequence in G.nodes()}
 
-    
     starting_sequences = np.random.choice(terminal_nodes, size=N_particles)
     # Release particle
     for particle in range(N_particles):
         starting_sequence = starting_sequences[particle]
         sequence: str = starting_sequence
-        path = [] # List of nodes passed: n_4, n_3, n_2, n_1, n_0
+        path = []  # List of nodes passed: n_4, n_3, n_2, n_1, n_0
         steps = []  # List of weights in path, w_43, w_32, w_21, w_10
         # The di for n_3 (i=1) is w_10 + w_21 + w_32, i.e., sum(steps[i,:])
         while True:
@@ -132,10 +143,12 @@ def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
             weights = [w / sum_weights for w in weights]
             targets = [target for _, target, _ in out_edges]
             next_node = random.choices(targets, weights=weights)[0]
-            weight_from_next_node_to_sequence = G_orig[next_node][sequence]["weight"] / sum(
+            weight_from_next_node_to_sequence = G_orig[next_node][sequence][
+                "weight"
+            ] / sum(
                 [
                     data["weight"]
-                    for _,_, data in G_orig.out_edges(next_node, data=True)
+                    for _, _, data in G_orig.out_edges(next_node, data=True)
                 ]
             )
             if sequence.startswith(next_node) or sequence.endswith(next_node):
@@ -168,10 +181,12 @@ def get_disassembly_indexes_mc_joint(G: nx.DiGraph, N_particles: int):
                 weights = [w / sum_weights for w in weights]
                 targets = [target for _, target, _ in out_edges]
                 next_node = random.choices(targets, weights=weights)[0]
-                weight_from_next_node_to_sequence = G_orig[next_node][sequence]["weight"] / sum(
+                weight_from_next_node_to_sequence = G_orig[next_node][sequence][
+                    "weight"
+                ] / sum(
                     [
                         data["weight"]
-                        for _,_, data in G_orig.out_edges(next_node, data=True)
+                        for _, _, data in G_orig.out_edges(next_node, data=True)
                     ]
                 )
                 if sequence.startswith(next_node) or sequence.endswith(next_node):
