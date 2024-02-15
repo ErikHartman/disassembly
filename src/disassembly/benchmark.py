@@ -77,7 +77,6 @@ class Benchmark:
                 self.results["real"][enzyme_name][iteration]["d"] = get_disassembly(
                     self.simulated_peptidomes[enzyme_name][iteration],
                     self.results["real"][enzyme_name][iteration]["di"],
-                    exclude=self.protein,
                 )
 
     def estimate_weights(
@@ -151,7 +150,6 @@ class Benchmark:
                     get_disassembly(
                         self.simulated_peptidomes[enzyme_name][iteration],
                         self.results[method_name][enzyme_name][iteration]["di"],
-                        exclude=self.protein,
                     )
                 )
 

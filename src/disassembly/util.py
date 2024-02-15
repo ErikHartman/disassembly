@@ -68,6 +68,7 @@ def plot_peptidome(protein: str, sequence_dict: dict, ax):
         sorted(sequence_dict.items(), key=lambda item: len(item[0]), reverse=True)
     )
     cmap = matplotlib.cm.coolwarm
+    max_range = max(sequence_dict.values())
     spaces = np.zeros(((len(sequence_dict.keys())), len(protein)))
     for sequence, copy_number in sequence_dict.items():
         start = protein.find(sequence)
@@ -80,7 +81,7 @@ def plot_peptidome(protein: str, sequence_dict: dict, ax):
                     [start + 1, end - 1],
                     [-height, -height],
                     linewidth=2,
-                    color=cmap(copy_number),
+                    color=cmap(copy_number / max_range),
                 )
                 break
 

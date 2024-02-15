@@ -49,7 +49,7 @@ class WeightEstimatorGD:
                 [data["weight"] for _, _, data in self.graph.edges(data=True)]
             )
             # Compute loss
-            kl = KL(self.true_dict_vals, guess.values())
+            kl = KL(self.true_dict_vals, guess.values()) + KL(guess.values(), self.true_dict_vals) 
             reg = get_l1(self.graph) * self.lam1
             reg += get_l2(self.graph) * self.lam2
             loss = kl + reg
@@ -94,11 +94,8 @@ class WeightEstimatorGD:
             ]
             for source in graph.nodes()
         }
-        n = 0
+
         while len(p_generated.keys()) < len(self.keys):
-            n += 1
-            if n > 10000:
-                print(p_generated.keys(), self.keys)
             solvables = get_solvable(out_edges, p_generated)
             for solvable in solvables:
                 p_generated[solvable] = np.zeros(len(self.keys))
@@ -167,12 +164,13 @@ class WeightEstimatorGD:
                             self.parameters["endo"][p1_left]
                             * self.parameters["endo"][p1_right]
                         ) ** 0.5
-                    if w > 0.01:
-                        graph.add_edge(
-                            key2,
-                            key1,
-                            weight=w,
-                        )
+                  #  if w > 0.01:
+                    graph.add_edge(
+                        key2,
+                        key1,
+                        weight=w,
+                    )
+                        
         # normalize
         for node in graph.nodes():
             out_edges = graph.out_edges(node, data=True)
@@ -262,7 +260,10 @@ class WeightEstimatorGD:
 
         while True:
             # Update graph
+
             for source, target in new_graph.edges():
+
+                
                 nx.set_edge_attributes(
                     new_graph,
                     {
@@ -276,10 +277,12 @@ class WeightEstimatorGD:
                     },
                 )
 
+
+
             # Get new KL
             new_guess, _ = self.generate_output(new_graph)
 
-            new_loss = KL(self.true_dict_vals, list(new_guess.values())) + (
+            new_loss = KL(self.true_dict_vals, list(new_guess.values())) + KL(list(new_guess.values()), self.true_dict_vals) + (
                 get_l2(new_graph) * self.lam2 + get_l1(new_graph) * self.lam1
             )
 
