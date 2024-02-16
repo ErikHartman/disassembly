@@ -35,10 +35,10 @@ def get_disassembly(
     for sequence in P.keys():
         if exp:
             disassembly += math.e ** (disassembly_indexes[sequence]) * (
-                (P[sequence] - min_n) / n_t
+                (P[sequence]) / n_t
             )
         else:
-            disassembly += disassembly_indexes[sequence] * ((P[sequence] - min_n) / n_t)
+            disassembly += disassembly_indexes[sequence] * ((P[sequence]) / n_t)
     return disassembly
 
 

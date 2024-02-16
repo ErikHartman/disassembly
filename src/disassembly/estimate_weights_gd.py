@@ -145,17 +145,13 @@ class WeightEstimatorGD:
         for key1 in self.keys:
             for key2 in self.keys:
                 if (key1 in key2) and (key1 != key2):
-                    if len(key1) == len(key2) - 1:
-                        p1_left = None
-                        p1_right = None
+                    if len(key1) == (len(key2) - 1):
                         w = self.parameters["exo"]
                     elif key2.startswith(key1):
-                        p1_left = None
                         p1_right = key1[-1]
                         w = self.parameters["endo"][p1_right]
                     elif key2.endswith(key1):
                         p1_left = key2[-len(key1) - 1]
-                        p1_right = None
                         w = self.parameters["endo"][p1_left]
                     else:  # middle
                         p1_left = key2[key2.find(key1) - 1]

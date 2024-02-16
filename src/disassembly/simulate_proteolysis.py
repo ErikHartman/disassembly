@@ -33,11 +33,6 @@ import math
 
 from scipy.stats import gamma
 
-a, shape, scale = 10, 1, 5
-g = gamma(a=a, scale=scale, loc=shape)
-x = np.linspace(0, 100)
-s = g.pdf(x)
-us = np.random.uniform(0, 1, size=10000)
 
 
 class enzyme:
@@ -97,7 +92,26 @@ def simulate_proteolysis(
     endo_or_exo_probability: list = [0.5, 0.5],
     verbose: bool = True,
     graph: bool = True,
+    length_params = "vitro"
 ) -> (dict, nx.DiGraph):
+    
+
+    in_vitro_params = (1.438694550365602, 6.776824404926209, 4.564749111402035)
+    in_vivo_params = (1.9155386766281643, 6.463266107715064, 4.557523852970956)
+
+    if length_params =="vitro":
+        a, shape, scale = in_vitro_params
+    else:
+        a, shape, scale = in_vivo_params
+
+    global g
+    g = gamma(a=a, scale=scale, loc=shape)
+    global max_gamma_pdf
+    global gamma_us
+    max_gamma_pdf = max(g.pdf(np.linspace(0, 100)))
+    gamma_us = np.random.uniform(0, 1, size=10000)
+
+
     sequence_dict = {starting_sequence: n_start}
 
     if graph:
@@ -149,12 +163,12 @@ def simulate_proteolysis(
                     )
 
         elif exo_or_endo == "endo":
-            sequences_longer_than_12 = {
-                s: sequence_dict[s] for s in sequence_dict.keys() if len(s) > 12
+            sequences_longer_than_10 = {
+                s: sequence_dict[s] for s in sequence_dict.keys() if len(s) > 10
             }
 
             sequence_frequencies = {}
-            for sequence in sequences_longer_than_12.keys():
+            for sequence in sequences_longer_than_10.keys():
                 n_cut_sites_in_sequence = 0
                 for aminoacid in enzymes.meta_enzyme.keys():
                     if enzymes.meta_enzyme[aminoacid] != 0:
@@ -164,7 +178,7 @@ def simulate_proteolysis(
                         )
 
                     sequence_frequencies[sequence] = (
-                        n_cut_sites_in_sequence * sequences_longer_than_12[sequence]
+                        n_cut_sites_in_sequence * sequences_longer_than_10[sequence]
                     )
 
             sequence_to_cut = random.choices(
@@ -185,7 +199,6 @@ def simulate_proteolysis(
                         index_to_cut[index] = enzymes.meta_enzyme[aminoacid]
 
             # Perform two cuts
-            # Perform two cuts
             cutting_index1 = int(
                 random.choices(
                     list(index_to_cut.keys()),
@@ -200,16 +213,12 @@ def simulate_proteolysis(
 
             if sum(index_to_cut.values()) == 0:
                 for index in index_to_cut.keys():
-                    index_to_cut[index] = (
-                        g.pdf(abs(index - cutting_index1))
-                    )
+                    index_to_cut[index] = g.pdf(abs(index - cutting_index1))
             else:
                 for index in index_to_cut.keys():
-                    index_to_cut[index] = (
-                        index_to_cut[index] * g.pdf(abs(index - cutting_index1))
+                    index_to_cut[index] = index_to_cut[index] * g.pdf(
+                        abs(index - cutting_index1)
                     )
-
-
 
             cutting_index2 = int(
                 random.choices(
@@ -222,9 +231,8 @@ def simulate_proteolysis(
 
             left = sequence_to_cut[: min(cutting_index1, cutting_index2) + 1]
             middle = sequence_to_cut[
-                min(cutting_index1, cutting_index2) + 1 : max(
-                    cutting_index1, cutting_index2
-                )
+                min(cutting_index1, cutting_index2)
+                + 1 : max(cutting_index1, cutting_index2)
             ]
             right = sequence_to_cut[max(cutting_index1, cutting_index2) + 1 :]
 
@@ -333,12 +341,12 @@ def update_sequence_graph(sequence_graph: nx.DiGraph, source_sequence, target_se
     return sequence_graph
 
 
-def accept_addition(length, iteration, min_length=4):
+def accept_addition(length, iteration, min_length=4, ):
     if length < min_length:
         return False
 
-    a = g.pdf(length) / max(s)
+    a = g.pdf(length) / max_gamma_pdf
 
-    if us[iteration % 10000] < a:
+    if gamma_us[iteration % 10000] < a:
         return True
     return False

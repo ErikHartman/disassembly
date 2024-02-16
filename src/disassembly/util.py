@@ -25,7 +25,6 @@ amino_acids = {
 }
 
 
-
 def normalize_dict(d):
     s = sum(d.values())
     return {k: v / s for k, v in d.items()}
@@ -47,6 +46,7 @@ def get_nrmse(true, observed):
     nrmse = rmse / np.mean(true)
     return nrmse
 
+
 def get_trend(data):
     diff = np.diff(data)
     mean_diff = np.mean(diff)
@@ -63,12 +63,16 @@ def get_trend(data):
         return "Plateau"
 
 
-def plot_peptidome(protein: str, sequence_dict: dict, ax):
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+
+def plot_peptidome(protein: str, sequence_dict: dict, ax, max_range=None):
     sequence_dict = dict(
         sorted(sequence_dict.items(), key=lambda item: len(item[0]), reverse=True)
     )
-    cmap = matplotlib.cm.coolwarm
-    max_range = max(sequence_dict.values())
+    cmap = matplotlib.cm.Greens
+    if not max_range:
+        max_range = max(sequence_dict.values())
     spaces = np.zeros(((len(sequence_dict.keys())), len(protein)))
     for sequence, copy_number in sequence_dict.items():
         start = protein.find(sequence)
@@ -84,11 +88,25 @@ def plot_peptidome(protein: str, sequence_dict: dict, ax):
                     color=cmap(copy_number / max_range),
                 )
                 break
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(
+        matplotlib.cm.ScalarMappable(
+            norm=matplotlib.colors.Normalize(vmin=0, vmax=max_range, clip=False),
+            cmap=cmap,
+        ),
+        cax=cax,
+        ax=ax
+    )
 
 
 import matplotlib.pyplot as plt
-def plot_di_correlation(true_dict, true_disassembly_indexes, estimated_disassembly_indexes):
-    fig = plt.figure(figsize=(5,5))
+
+
+def plot_di_correlation(
+    true_dict, true_disassembly_indexes, estimated_disassembly_indexes
+):
+    fig = plt.figure(figsize=(5, 5))
     trues = []
     estimated = []
     c = []
@@ -101,12 +119,10 @@ def plot_di_correlation(true_dict, true_disassembly_indexes, estimated_disassemb
         estimated.append(estimated_disassembly_indexes[key])
         c.append(true_dict[key])
 
-    max_= max(trues, estimated)
-   
+    max_ = max(trues, estimated)
+
     plt.plot(
         np.linspace(0, max(max_)), np.linspace(0, max(max_)), color="gray", label="y=x"
     )
-    plt.scatter(
-        trues, estimated, c=c, cmap="coolwarm", alpha=0.5
-    )
+    plt.scatter(trues, estimated, c=c, cmap="coolwarm", alpha=0.5)
     plt.legend()
