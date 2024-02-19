@@ -92,6 +92,7 @@ class Benchmark:
         di_mc_n=10000,
         exo=0.2,
         method_name=None,
+        lr_scheduler ={}
     ):
 
         if not method_name:
@@ -102,7 +103,7 @@ class Benchmark:
 
         if method == "gd":
             wegd = WeightEstimatorGD(
-                lr=lr, n_iterations=n_iterations, lam1=lam1, lam2=lam2
+                lr=lr, n_iterations=n_iterations, lam1=lam1, lam2=lam2, lr_scheduler=lr_scheduler
             )
         for enzyme_name in self.enzyme_names:
             print(f"--{enzyme_name}---")
@@ -226,5 +227,49 @@ class Benchmark:
                     )
         df = pd.DataFrame(df)
         sns.boxplot(df, x="enzyme", y="d", hue="alg")
+    
 
-        # TODO: plot correlation between simulated and generated graph weights
+    def plot_weight_corr(self, alg_name="gd"):
+        fig = plt.figure(
+        layout="constrained",
+        figsize=(len(self.enzyme_names) * 3, self.iterations * 2),
+        )
+        subfigs = fig.subfigures(
+            self.iterations,
+            len(self.enzyme_names),
+        )
+        for enzyme_name in self.enzyme_names:
+            for iteration in range(3):
+                in_both = 0
+                in_one = 0
+                real_g = self.simulated_graphs[enzyme_name][iteration]
+                g = self.generated_graphs[alg_name][enzyme_name][iteration]
+                real_vs_estimated_weights = []
+                for node in real_g.nodes():
+                    sum_out_edges = sum(
+                        [data["weight"] for _, _, data in real_g.out_edges(node, data=True)]
+                    )
+                    for source, target, data in g.out_edges(node, data=True):
+                        if real_g.has_edge(source, target):
+                            real_weight = real_g[source][target]["weight"] / sum_out_edges
+                            estimated_weight = g[source][target]["weight"]
+                            real_vs_estimated_weights.append(
+                                (real_weight, estimated_weight)
+                            )
+                            in_both += 1
+                        else:
+                            in_one += 1
+                subfigs[list(range(self.iterations)).index(iteration)][
+                    self.enzyme_names.index(enzyme_name) 
+                ].suptitle(f"{enzyme_name} {iteration}")
+                axs = subfigs[list(range(self.iterations)).index(iteration)][
+                    self.enzyme_names.index(enzyme_name) 
+                ].subplots(1, 2, width_ratios=[1, 3])
+                axs[0].bar(x=["In both", "In one"], height=[in_both, in_one], color=["blue","darkorange"])
+                axs[0].set_xticks(["In both", "In one"], labels=["In both", "In one"], rotation=90)
+                axs[1].scatter(
+                    x=[r for r, e in real_vs_estimated_weights],
+                    y=[e for r, e in real_vs_estimated_weights],
+                    color="black",
+                    alpha=0.1,
+                )

@@ -16,15 +16,22 @@ class WeightEstimatorGD:
 
     def __init__(
         self,
-        lr: float,
         n_iterations: int,
+        lr: float = None,
         lam1: float = 0,
         lam2: float = 0,
+        lr_scheduler: dict = None,
     ) -> None:
         self.lr = lr
         self.n_iterations = n_iterations
         self.lam1 = lam1
         self.lam2 = lam2
+        if not lr_scheduler:
+            self.lr_scheduler = {i: lr for i in n_iterations}
+            if not lr:
+                raise ValueError("Must have lr or lr_scheduler")
+        else:
+            self.lr_scheduler = lr_scheduler
 
     def run(self, true_dict: dict, verbose: bool, parameters: dict = None):
         self.true_dict = true_dict
@@ -43,13 +50,16 @@ class WeightEstimatorGD:
         self.weights = {}
 
         for iteration in range(self.n_iterations):
+            self.lr = self.lr_scheduler[iteration]
             guess, guess_df = self.generate_output(self.graph)
             self.generated[iteration] = guess
             self.weights[iteration] = np.array(
                 [data["weight"] for _, _, data in self.graph.edges(data=True)]
             )
             # Compute loss
-            kl = KL(self.true_dict_vals, guess.values()) + KL(guess.values(), self.true_dict_vals) 
+            kl = KL(self.true_dict_vals, guess.values()) + KL(
+                guess.values(), self.true_dict_vals
+            )
             reg = get_l1(self.graph) * self.lam1
             reg += get_l2(self.graph) * self.lam2
             loss = kl + reg
@@ -160,13 +170,13 @@ class WeightEstimatorGD:
                             self.parameters["endo"][p1_left]
                             * self.parameters["endo"][p1_right]
                         ) ** 0.5
-                  #  if w > 0.01:
+                    #  if w > 0.01:
                     graph.add_edge(
                         key2,
                         key1,
                         weight=w,
                     )
-                        
+
         # normalize
         for node in graph.nodes():
             out_edges = graph.out_edges(node, data=True)
@@ -259,7 +269,6 @@ class WeightEstimatorGD:
 
             for source, target in new_graph.edges():
 
-                
                 nx.set_edge_attributes(
                     new_graph,
                     {
@@ -273,13 +282,13 @@ class WeightEstimatorGD:
                     },
                 )
 
-
-
             # Get new KL
             new_guess, _ = self.generate_output(new_graph)
 
-            new_loss = KL(self.true_dict_vals, list(new_guess.values())) + KL(list(new_guess.values()), self.true_dict_vals) + (
-                get_l2(new_graph) * self.lam2 + get_l1(new_graph) * self.lam1
+            new_loss = (
+                KL(self.true_dict_vals, list(new_guess.values()))
+                + KL(list(new_guess.values()), self.true_dict_vals)
+                + (get_l2(new_graph) * self.lam2 + get_l1(new_graph) * self.lam1)
             )
 
             if new_loss <= old_loss:
