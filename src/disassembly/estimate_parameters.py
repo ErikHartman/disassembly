@@ -29,37 +29,32 @@ class ParameterEstimator:
         n_iterations_exo=20,
         lr_endo=0.25,
         lr_exo=0.05,
-        n_generate: int = 500,
     ):
         """
         Main run-method to estimate parameters
         """
-        self.n_generate = n_generate
+        self.n_generate = int(sum(true_dict.values()))
+        print(self.n_generate)
         self.true_dict = true_dict
         self.protein = protein
         self.best_losses = []
         all_losses = []
-        starting_guess = self.generate_guess()
-        p, q = compare(self.true_dict, starting_guess)
-        self.loss_to_beat = KL(p, q) + KL(q, p)
-        true_n_peptides = sum(true_dict.values())
+
         for i in range(n_iterations_endo):
             print(f"Iteration: {i}")
-            new_guess = self.generate_guess()
-            p, q = compare(self.true_dict, new_guess)
+            guess = self.generate_guess()
+            p, q = compare(self.true_dict, guess)
             self.loss_to_beat = KL(p, q) + KL(q, p)  # baseline
             for aa in self.parameters["endo"].keys():
                 _, new_loss = self.update_parameter(aa, lr_endo, verbose=True)
                 while new_loss < self.loss_to_beat:
                     diff = self.loss_to_beat - new_loss
-                    if diff > 0:
-                        print(f"{aa} better!")
-
-                        self.loss_to_beat = new_loss
-                        self.best_losses.append(new_loss)
-                        self.parameters, new_loss = self.update_parameter(
-                            aa, lr_endo * diff, verbose=True
-                        )
+                    print(f"{aa} better!")
+                    self.loss_to_beat = new_loss
+                    self.best_losses.append(new_loss)
+                    self.parameters, new_loss = self.update_parameter(
+                        aa, lr_endo * diff, verbose=True
+                    )
                 self.parameters["endo"][aa] -= lr_endo  # this resets the initial guess
 
         new_guess = self.generate_guess()
