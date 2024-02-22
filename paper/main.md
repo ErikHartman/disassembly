@@ -2,8 +2,9 @@
 title: No title
 
 institute:
-  - stat: Department of Statistics, Lund University
   - medfak: Division of Infection Medicine, Faculty of Medicine, Lund University
+  - stat: Department of Statistics, Lund University
+
 author: 
   - Erik Hartman:
       institute: medfak
@@ -31,7 +32,7 @@ header-includes:
 \SetAlgoLined
 \DontPrintSemicolon
 \KwIn{protein $P$, $n_{generate}$ $\theta_{enzyme}$, $\theta_{gamma}$, $p_{endo}$, $p_{exo}$}
-\KwOut{$F$}
+\KwOut{$f$}
 
 $f \gets $ dict[sequence : count]\;
 $f(P) \gets n_P$\;
@@ -40,7 +41,7 @@ $f(P) \gets n_P$\;
     $n_{generate} \gets \sum_xT(x)$\;
     $x \sim U(0,1) $\;
     \eIf{$x>p_{endo}$}{
-        //exo-protease\;
+        //exoprotease\;
         sequence to chew $s \sim f$ //sample sequence from dict with weights count\;
         $x \sim U(0,1) $\;
         $a \gets gamma(len(s), \theta_{gamma})$\;
@@ -51,7 +52,7 @@ $f(P) \gets n_P$\;
         }
     }
     {
-        //endo\;
+        //endoprotease\;
         $f_{cut}(s) \gets \sum_s N_{aa}^{s}*\theta_{aa}$\;
         sequence to cut $s \gets f_{cut}(s)$//sequence to cut \;
         first index to cut $index_a \sim s(\theta_{aa}(aa_x))$\;
@@ -75,7 +76,7 @@ $f(P) \gets n_P$\;
     }
 }
 
-Returns $f$
+Return $f$
 \end{algorithm}
 
 
