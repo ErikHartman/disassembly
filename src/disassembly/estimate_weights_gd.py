@@ -54,9 +54,7 @@ class WeightEstimatorGD:
             self.lr = self.lr_scheduler[iteration]
             guess, guess_df = self.generate_output(self.graph)
             self.generated[iteration] = guess
-            self.weights[iteration] = np.array(
-                [data["weight"] for _, _, data in self.graph.edges(data=True)]
-            )
+            self.weights[iteration] = nx.to_pandas_edgelist(self.graph).set_index(["source","target"])
             # Compute loss
             kl = KL(self.true_dict_vals, guess.values()) + KL(
                 guess.values(), self.true_dict_vals
@@ -68,7 +66,7 @@ class WeightEstimatorGD:
 
             if verbose:
                 print(
-                    f"\r {iteration} / {self.n_iterations} | {loss:.2f}, kl: {kl:.2f}, reg: {reg:.2f}  | nz: { np.sum( self.weights[iteration] > 0.0 )} | ",
+                    f"\r {iteration} / {self.n_iterations} | {loss:.2f}, kl: {kl:.2f}, reg: {reg:.2f}  | nz: { np.sum( self.weights[iteration]['weight'].values > 0.0 )} | ",
                     end="",
                     flush=True,
                 )
