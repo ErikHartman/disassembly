@@ -249,7 +249,7 @@ class Benchmark:
                     sum_out_edges = sum(
                         [data["weight"] for _, _, data in real_g.out_edges(node, data=True)]
                     )
-                    for source, target, data in g.out_edges(node, data=True):
+                    for source, target, _ in g.out_edges(node, data=True):
                         if real_g.has_edge(source, target):
                             real_weight = real_g[source][target]["weight"] / sum_out_edges
                             estimated_weight = g[source][target]["weight"]

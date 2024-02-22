@@ -27,7 +27,7 @@ class WeightEstimatorGD:
         self.lam1 = lam1
         self.lam2 = lam2
         if not lr_scheduler:
-            self.lr_scheduler = {i: lr for i in n_iterations}
+            self.lr_scheduler = {i: lr for i in range(n_iterations)}
             if not lr:
                 raise ValueError("Must have lr or lr_scheduler")
         else:

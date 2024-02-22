@@ -66,15 +66,14 @@ class ParameterEstimator:
         p, q = compare(self.true_dict, new_guess)
         self.loss_to_beat = KL(p, q) + KL(q, p)  # baseline
         for i in range(n_iterations_exo):
-            guess_n_peptides = sum(self.generate_guess().values())
-            exo_diff = lr_exo * (1 if true_n_peptides > guess_n_peptides else -1)
-            self.parameters["exo"] = self.parameters["exo"] + exo_diff
+            exo_diff = lr_exo * random.choice([-1,1])
+            self.parameters["exo"] = self.parameters["exo"] + exo_diff # update parameter
             new_guess = self.generate_guess()
             p, q = compare(self.true_dict, new_guess)
             new_loss = KL(p, q) + KL(q, p)
             all_losses.append(new_loss)
             if new_loss > self.loss_to_beat:
-                self.parameters["exo"] -= exo_diff
+                self.parameters["exo"] -= exo_diff #revert
             else:
                 self.loss_to_beat = new_loss
                 self.best_losses.append(new_loss)
