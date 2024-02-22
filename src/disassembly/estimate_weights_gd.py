@@ -48,6 +48,7 @@ class WeightEstimatorGD:
         self.generated = {}
         self.losses = []
         self.weights = {}
+        self.gradients = {}
 
         for iteration in range(self.n_iterations):
             self.lr = self.lr_scheduler[iteration]
@@ -76,6 +77,7 @@ class WeightEstimatorGD:
             dp_dw = self.compute_dp_dw(guess_df)
             dL_dp = self.compute_dL_dp(self.true_dict_vals, list(guess.values()))
             gradient = self.compute_dL_dw(dL_dp, dp_dw)
+            self.gradients[iteration] = gradient
             grad_reg = self.get_grad_reg(self.graph)
 
             # Update graph

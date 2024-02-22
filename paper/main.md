@@ -28,7 +28,7 @@ header-includes:
 
 
 \begin{algorithm}[H]
-\caption{Simulate proteolysis of protein $P$}
+\caption{Simulate proteolysis of protein $P$.}
 \SetAlgoLined
 \DontPrintSemicolon
 \KwIn{protein $P$, $n_{generate}$ $\theta_{enzyme}$, $\theta_{gamma}$, $p_{endo}$, $p_{exo}$}
