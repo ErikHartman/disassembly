@@ -81,7 +81,7 @@ Return $f$
 
 
 \begin{algorithm}[H]
-\caption{Estimating $\theta$ numerically. To generate a guess, simulate degradation of protein $P$ with parameters $\theta$ to generate $n_{generate}$ peptides.\;}
+\caption{Estimating $\theta$ numerically. To generate a guess, simulate degradation of protein $P$ with parameters $\theta$ to generate $n_{generate}$ peptides (see Algorithm 1).}
 \SetAlgoLined
 \KwIn{protein $P$, $n_P$, true distribution $T$, $\theta$, $lr_{endo}$, $lr_{exo}$}
 \KwOut{$\theta$}
