@@ -2,6 +2,8 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from disassembly.util import KL
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 class WeightEstimatorGD:
@@ -54,7 +56,9 @@ class WeightEstimatorGD:
             self.lr = self.lr_scheduler[iteration]
             guess, guess_df = self.generate_output(self.graph)
             self.generated[iteration] = guess
-            self.weights[iteration] = nx.to_pandas_edgelist(self.graph).set_index(["source","target"])
+            self.weights[iteration] = nx.to_pandas_edgelist(self.graph).set_index(
+                ["source", "target"]
+            )
             # Compute loss
             kl = KL(self.true_dict_vals, guess.values()) + KL(
                 guess.values(), self.true_dict_vals
@@ -145,15 +149,20 @@ class WeightEstimatorGD:
             for key, target, data in out_edges:
                 nx.set_edge_attributes(
                     graph,
-                    {(key, target): {"weight": 0.75 * data["weight"] / total_out}},
+                    {(key, target): {"weight": 0.5 * data["weight"] / total_out}},
                 )
         return graph
 
-    def create_graph_from_parameters(self):
+    def create_graph_from_parameters(self, true_dict: dict = None):
+        if not true_dict:
+            true_dict = self.true_dict
+            keys = self.keys
+        else:
+            keys = list(true_dict.keys())
         graph = nx.DiGraph()
-        graph.add_nodes_from([(k, {"layer": len(k)}) for k in self.keys])
-        for key1 in self.keys:
-            for key2 in self.keys:
+        graph.add_nodes_from([(k, {"layer": len(k)}) for k in keys])
+        for key1 in keys:
+            for key2 in keys:
                 if (key1 in key2) and (key1 != key2):
                     if len(key1) == (len(key2) - 1):
                         w = self.parameters["exo"]
@@ -170,7 +179,7 @@ class WeightEstimatorGD:
                             self.parameters["endo"][p1_left]
                             * self.parameters["endo"][p1_right]
                         ) ** 0.5
-                    #  if w > 0.01:
+
                     graph.add_edge(
                         key2,
                         key1,
@@ -319,15 +328,81 @@ class WeightEstimatorGD:
                 grad_reg[(source, target)] = 2 * data["weight"] * self.lam2 + self.lam1
         return grad_reg
 
-    def drop_weights(self, threshold: float = 0.01):
-        """
-        Idea, drop edges that are very small
-        """
-        new_graph = nx.DiGraph()
-        for source, target, data in self.graph.edges(data=True):
-            if data["weight"] > threshold:
-                new_graph.add_edge(source, target, weight=data["weight"])
-        return new_graph
+    def plot(self, real_dist, real_sequence_graph):
+
+        fig, axs = plt.subplot_mosaic(
+            [
+                ["generated", "loss", "gradients", "weights", "real"],
+                ["true", "loss", "gradients", "weights", "real"],
+            ],
+            width_ratios=[2, 2, 3, 3, 0.5],
+            figsize=(15, 5),
+        )
+
+        axs["true"].bar(
+            real_dist.keys(), [v / sum(real_dist.values()) for v in real_dist.values()]
+        )
+        axs["generated"].bar(
+            self.generated[len(self.generated.keys()) - 1].keys(),
+            self.generated[len(self.generated.keys()) - 1].values(),
+            color="orange",
+        )
+
+        axs["loss"].plot(self.losses)
+        axs["true"].set_title("True distribution")
+        axs["generated"].set_title(f"Generated distribution")
+        axs["loss"].set_title("Loss")
+        axs["true"].set_xticks([])
+        axs["generated"].set_xticks([])
+        gradients = pd.DataFrame(self.gradients).apply(np.abs).apply(np.log10)
+        sns.heatmap(
+            gradients,
+            cmap="Spectral_r",
+            cbar_kws={"label": "grad"},
+            ax=axs["gradients"],
+        )
+        axs["gradients"].set_yticks([])
+        axs["gradients"].set_xlabel("iteration")
+        axs["gradients"].set_ylabel("weight (source-target pair)")
+        axs["gradients"].set_title("Gradients")
+
+        dataframes = []
+        for iteration, dataframe in self.weights.items():
+            dataframe.rename(columns={"weight": iteration}, inplace=True)
+            dataframes.append(dataframe)
+        weights = pd.concat(dataframes, axis=1)
+
+        sns.heatmap(
+            weights,
+            ax=axs["weights"],
+            cbar_kws={"label": r"weight"},
+            cmap="Reds",
+            vmax=0.5,
+            vmin=0,
+        )
+        axs["weights"].set_yticks([])
+        axs["weights"].set_ylabel("")
+        axs["weights"].set_title("Weights")
+
+        real_weights = (
+            nx.to_pandas_edgelist(real_sequence_graph)
+            .set_index(["source", "target"])
+            .merge(weights, left_index=True, right_index=True, how="outer")
+            .fillna(0)["weight"]
+            .loc[weights.index]
+        )
+        sns.heatmap(
+            np.reshape(real_weights.values, (len(real_weights.values), -1)),
+            ax=axs["real"],
+            cmap="Reds",
+            vmax=0.5,
+            vmin=0,
+        )
+        axs["real"].set_yticks([])
+        axs["real"].set_ylabel("")
+        axs["real"].set_title("Real")
+
+        plt.show()
 
 
 def create_one_hot(keys, key):

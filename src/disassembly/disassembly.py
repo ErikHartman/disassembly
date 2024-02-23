@@ -65,7 +65,11 @@ def get_disassembly_indexes_mc(G: nx.DiGraph, N_particles: int):
                     disassembly_indexes[node].append(steps - i)
                 break
             weights = np.array([weight["weight"] for _, _, weight in out_edges])
+            if "nan" in weights:
+                print(out_edges)
             sum_weights = sum(weights)
+            if sum_weights == 0:
+                print(out_edges)
             weights = [w / sum_weights for w in weights]
             targets = [target for _, target, _ in out_edges]
             next_node = np.random.choice(targets, p=weights)

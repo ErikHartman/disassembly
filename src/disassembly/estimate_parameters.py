@@ -1,5 +1,5 @@
 from disassembly.util import normalize_dict, amino_acids, KL
-from disassembly.simulate_proteolysis import simulate_proteolysis, enzyme, enzyme_set
+from disassembly.simulate_proteolysis import ProteolysisSimulator, enzyme, enzyme_set
 import random
 
 
@@ -10,7 +10,7 @@ class ParameterEstimator:
         parameters: dict = None,
         exo: float = 0.25,
     ) -> None:
-
+        self.ps = ProteolysisSimulator(verbose=False)
         if parameters:
             self.parameters = parameters
         else:
@@ -38,10 +38,9 @@ class ParameterEstimator:
         self.true_dict = true_dict
         self.protein = protein
         self.best_losses = []
-        all_losses = []
 
         for i in range(n_iterations_endo):
-            print(f"Iteration: {i}")
+            print(f"Endo iteration: {i}")
             guess = self.generate_guess()
             p, q = compare(self.true_dict, guess)
             self.loss_to_beat = KL(p, q) + KL(q, p)  # baseline
@@ -66,7 +65,6 @@ class ParameterEstimator:
             new_guess = self.generate_guess()
             p, q = compare(self.true_dict, new_guess)
             new_loss = KL(p, q) + KL(q, p)
-            all_losses.append(new_loss)
             if new_loss > self.loss_to_beat:
                 self.parameters["exo"] -= exo_diff #revert
             else:
@@ -74,6 +72,9 @@ class ParameterEstimator:
                 self.best_losses.append(new_loss)
 
             print(f" exo: {new_loss:.2f} | {self.loss_to_beat:.2f} ({self.parameters['exo']:.2f})")
+        
+        self.parameters["endo"] = normalize_dict(self.parameters["endo"])
+        self.parameters["exo"] = max(0, self.parameters["exo"])
         return self.parameters
 
     def update_parameter(self, aa: str, e: float, verbose: bool = False):
@@ -89,21 +90,21 @@ class ParameterEstimator:
         """
         Generates a guess from parameters
         """
+        norm_params = {"endo":{}, "exo":0}
         for aa in self.parameters["endo"]:
-            self.parameters["endo"][aa] = max(0, self.parameters["endo"][aa])
-        self.parameters["exo"] = max(0, self.parameters["exo"])
-        self.parameters["endo"] = normalize_dict(self.parameters["endo"])
-        parameter_enzyme = enzyme_set([enzyme(self.parameters["endo"], "")], [1], [1])
-        guess = simulate_proteolysis(
+            norm_params["endo"][aa] = self.parameters["endo"][aa]
+        norm_params["exo"] = max(0, self.parameters["exo"])
+        norm_params["endo"] = normalize_dict(norm_params["endo"])
+        parameter_enzyme = enzyme_set([enzyme(norm_params["endo"], "")], [1], [1])
+        guess = self.ps.simulate_proteolysis(
             self.protein,
             parameter_enzyme,
             n_start=1,
             n_generate=self.n_generate,
             endo_or_exo_probability=[
-                1 - self.parameters["exo"],
-                self.parameters["exo"],
+                1 - norm_params["exo"],
+                norm_params["exo"],
             ],
-            verbose=False,
             graph=False,
         )
         return guess
