@@ -125,3 +125,68 @@ Return $\theta$\;
 \end{algorithm}
 
 
+
+\begin{algorithm}[H]
+\caption{Estimate weights in graph with gradient descent.}
+\SetAlgoLined
+\DontPrintSemicolon
+\KwIn{observed distribution $T$, $lr$, $\lambda_1$, $\lambda_2$, $n_{iterations}$}
+\KwOut{$G$}
+
+$G \gets \{V,E,W\}$\;
+$V_L$ denotes the original protein (bottom node)\;
+
+
+
+\For{i from 0 to $n_{iterations}$}{
+    \;
+    //generate guess\;
+    $p_{generated} \gets \{\}$// this represents the output distribution if starting from a given node\;
+    $T = \{ s \in V \mid \text{there exists no } (s, t) \in E \text{ for any } t \in V \}$ //terminal nodes\;
+    \For{$t \in T$}{
+        $p_{generated}[t] \gets \bold{1}_t$ //onehot\;
+    }
+    \While{$\text{all nodes in } G \text{ is not solved}$}{
+        solvable $\gets \{s \in V \mid t \in p_{generated} \text{ for all } (s,t) \in E \}$;
+        \For{$s \in V$}{
+            $p_{generated}[s] = \sum{w_{s,t}*p_{generated}[t]} + 1-\sum{w_{s,t}} *\bold1_t$\;
+        }
+    }
+    $\hat{T} \gets p_{generated}[V_L]$\;
+    \;
+    //compute loss\;
+    $L_1 \gets \lambda_1\sum{|w|}$\;
+    $L_2 \gets \lambda_2\sum{w^2}$\;
+    $L \gets D_{KL}(T \mid \hat{T}) + D_{KL}(\hat{T} \mid T) +L_1 + L_2$\;
+    \;
+    //compute gradient\;
+    $\frac{dT}{dw} \gets \hat{T}_{V_L, t}(\hat{T}_s - \bold1_s)$\;
+    $\frac{dL}{dT} \gets -\frac{T}{\hat{T}}$\;
+    $\frac{dL}{dw} \gets \frac{dL}{dT}*\frac{dT}{dw}$\;
+    \;
+    //update graph\;
+    $k \gets 1$\;
+    \For{$s \in V$}{
+        $\hat{w}_{s,t} \gets max(0, w_{s,t} - lr*(\frac{dL}{dw})_{s,t})$\;
+        $d_{s,t} = \hat{w}_{s,t} - w_{s,t}$\;
+    }
+    
+    \While{ $\sum_t{w_{s,t} + k*d_{s,t}} > 1$ }{
+        $k \gets k / 2$ \;
+    }
+
+    \While{$\text{a better graph is not found or $k$ isn't extremely small}$}{
+        $\hat{W} \gets W + d*k$\;
+        $\hat{T} \gets \text{ generate guess with new weights}$\;
+        $\hat{L} \gets D_{KL}(T \mid \hat{T}) + D_{KL}(\hat{T} \mid T) +L_1 + L_2$\;
+        \eIf{$\hat{L} \le L$}{
+            $G \gets \{V,E,\hat{W}\}$\;
+        }{
+            $k \gets k/2$\;
+        }
+    }
+}
+Return $G$
+\end{algorithm}
+
+

@@ -160,7 +160,7 @@ class ProteolysisSimulator:
                         sequence_to_chew, new_sequence, endo_or_exo="exo"
                     )
                     if graph:
-                        sequence_graph = self.update_sequence_graph(
+                        self.sequence_graph = self.update_sequence_graph(
                             sequence_to_chew, new_sequence
                         )
 
@@ -268,7 +268,7 @@ class ProteolysisSimulator:
                             )
 
         if graph:
-            for node in sequence_graph.nodes():
+            for node in self.sequence_graph.nodes():
                 self.sequence_graph.add_edge(
                     node, node, weight=self.sequence_dict[node]
                 )
