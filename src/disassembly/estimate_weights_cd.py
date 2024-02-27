@@ -55,8 +55,13 @@ class WeightEstimatorCD:
         self.losses = []
         self.weights = {}
         self.gradients = {}
+        self.ks=[]
+        
+        self.n_weights = self.graph.number_of_edges()
+        print("N weights: ", self.n_weights)
 
         for iteration in range(self.n_iterations):
+            self.iteration = iteration
             self.lr = self.lr_scheduler[iteration]
             guess, guess_df = self.generate_output(self.graph)
             self.generated[iteration] = guess
@@ -243,20 +248,24 @@ class WeightEstimatorCD:
 
     def update_weights(self, grad, grad_reg=None) -> nx.DiGraph:
         k = 1
-
+        old_loss = self.losses[-1]
         # Get the edge (key) with the largest gradient
-        max_key = None
-        max_val = 0
-        for edge in grad.keys():
-            if abs(grad[edge]) > abs(max_val):
-                max_val = grad[edge]
-                max_key = edge
+        #max_key = None
+        #max_val = 0
+        #for edge in grad.keys():
+        #    if abs(grad[edge]) > abs(max_val):
+        #        max_val = grad[edge]
+        #        max_key = edge
+
+        edges = list(grad.keys())
+
+        edge_index = self.iteration % len(edges)
 
         old_graph = nx.DiGraph()
         for source, target, data in self.graph.edges(data=True):
             old_graph.add_edge(source, target, weight=data["weight"])
 
-        source, target = max_key
+        source, target = edges[edge_index] #max_key
         sum_old_weight = sum(
             [data["weight"] for _, _, data in self.graph.out_edges(source, data=True)]
         )
@@ -274,21 +283,40 @@ class WeightEstimatorCD:
             k = k / 2
 
         new_graph = self.graph.copy()
+        while True:
 
-        nx.set_edge_attributes(
-            new_graph,
-            {
-                (source, target): {
-                    "weight": max(
-                        0,
-                        old_graph[source][target]["weight"] + diff * k,
-                    )
-                }
-            },
-        )
+            nx.set_edge_attributes(
+                new_graph,
+                {
+                    (source, target): {
+                        "weight": max(
+                            0,
+                            old_graph[source][target]["weight"]
+                            + diff * k,
+                        )
+                    }
+                },
+            )
 
-        self.graph = new_graph
-        return new_graph
+            # Get new KL
+            new_guess, _ = self.generate_output(new_graph)
+
+            new_loss = (
+                KL(self.true_dict_vals, list(new_guess.values()))
+                + KL(list(new_guess.values()), self.true_dict_vals)
+                + (get_l2(new_graph) * self.lam2 + get_l1(new_graph) * self.lam1)
+            )
+
+            if new_loss < old_loss:
+                self.ks.append(k)
+                return new_graph
+
+            if k < 1e-8:
+                self.ks.append(k)
+                return old_graph
+
+            k = k / 2
+            new_graph = self.graph  # resets the new_graph to graph
 
     def compute_dL_dp(self, true, guess):
         return -np.array(true) / (np.array(guess) + 1e-8)

@@ -51,6 +51,7 @@ class WeightEstimatorGD:
         self.losses = []
         self.weights = {}
         self.gradients = {}
+        self.ks = []
 
         for iteration in range(self.n_iterations):
             self.lr = self.lr_scheduler[iteration]
@@ -300,10 +301,12 @@ class WeightEstimatorGD:
                 + (get_l2(new_graph) * self.lam2 + get_l1(new_graph) * self.lam1)
             )
 
-            if new_loss <= old_loss:
+            if new_loss < old_loss:
+                self.ks.append(k)
                 return new_graph
 
             if k < 1e-8:
+                self.ks.append(k)
                 return old_graph
 
             k = k / 2
@@ -354,7 +357,7 @@ class WeightEstimatorGD:
         axs["loss"].set_title("Loss")
         axs["true"].set_xticks([])
         axs["generated"].set_xticks([])
-        gradients = pd.DataFrame(self.gradients).apply(np.abs).apply(np.log10)
+        gradients = pd.DataFrame(self.gradients)
         sns.heatmap(
             gradients,
             cmap="Spectral_r",

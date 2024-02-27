@@ -24,6 +24,40 @@ header-includes:
 
 ---
 
+
+## Gradient
+
+$V$ är alla peptider.
+$v$ är en peptid.
+
+$ \Gamma = (V,E) $ är den riktade grafen.
+$ P (\cdot | v) $ är en fördelning av peptider (vektor av storlek $m$ som är antalet unika peptider) givet att du står i peptid $v$.
+
+$V_L$ är den längsta peptiden (nod utan in-kanter).
+
+$P(v_L \rightarrow v)$ är sannolikheten att besöka $v$. Också samma som $P(v_L \rightarrow v) = P(v | v_L) / w_v^v$
+
+$ P(\cdot | v) = \bold1_v * w^v_v + \sum_{i \sim v}P(\cdot |i)*w^v_i$
+
+$ P(AB) = \bold1_{AB} * w_{AB}^{AB} + P(A)*w_A^{AB} + P(B)*w_B^{AB}$
+
+$w_v^v = P(\text{stanna i v})$ därför är sannolikhetsfördelningen av peptider, $P(\cdot)$ en vektor.
+
+Notera att $w_v^v = 1 - \sum_{i \sim v}{w^i_v}$
+
+Därför blir gradienten:
+$ \frac{dP(\cdot | v_L)}{dw^i_v} = P(v_L \rightarrow v)(P(\cdot|i)-\bold1_v)$
+
+$D_{KL} = log(P(\cdot|v_L)) = \sum_{v \in V}log(P(v|v_L))$
+
+$n_v$ är antalet observerade peptider av typ $v$. 
+
+$\frac{dD_{KL}}{dw^v_i} = \frac{d}{dw^v_i}(P(\cdot | v_L))^T * ( \frac{n_i}{P(v_i | v_L)} + ... \frac{n_m}{P(v_m | v_L)})$ där indexering av peptider är i ordningen av vektorn $P(\cdot | v_L)$. Alternativt kan skrivas med summa.
+
+Constraints: 
+
+
+
 ## Algorithms
 
 
@@ -147,8 +181,8 @@ $V_L$ denotes the original protein (bottom node)\;
         $p_{generated}[t] \gets \bold{1}_t$ //onehot\;
     }
     \While{$\text{all nodes in } G \text{ is not solved}$}{
-        solvable $\gets \{s \in V \mid t \in p_{generated} \text{ for all } (s,t) \in E \}$;
-        \For{$s \in V$}{
+        solvable $\gets \{s \in V \mid t \in p_{generated} \text{ for all } (s,t) \in E \}$\;
+        \For{$s \in \text{solvable}$}{
             $p_{generated}[s] = \sum{w_{s,t}*p_{generated}[t]} + 1-\sum{w_{s,t}} *\bold1_t$\;
         }
     }
