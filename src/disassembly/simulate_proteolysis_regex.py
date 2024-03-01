@@ -5,7 +5,6 @@ import random
 import re
 import numpy as np
 
-
 from scipy.stats import gamma
 
 
@@ -41,7 +40,7 @@ class ProteolysisSimulator:
     def simulate_proteolysis(
         self,
         starting_sequence: str,
-        enzyme: Enzyme = Enzyme("trypsin", {"..[RK](?!P)..": 1}),
+        enzyme: Enzyme = Enzyme("trypsin", {"(.)(.)([RK])(?!P)(.)(.)": 1}),
         n_start: int = 10,
         n_generate: int = 100,
         endo_or_exo_probability: list = [0.5, 0.5],
@@ -104,19 +103,21 @@ class ProteolysisSimulator:
                         new_sequence = sequence_to_chew[1:]
                     else:
                         new_sequence = sequence_to_chew[:-1]
-                    self.sequence_dict = self.update_sequence_dict(
-                        sequence_to_chew, new_sequence, endo_or_exo="exo"
-                    )
+                    self.sequence_dict = self.update_sequence_dict(new_sequence)
                     if graph:
                         self.sequence_graph = self.update_sequence_graph(
                             sequence_to_chew, new_sequence
                         )
 
             elif exo_or_endo == "endo":
-
+                sequences_longer_than_10 = {
+                    s: self.sequence_dict[s]
+                    for s in self.sequence_dict.keys()
+                    if len(s) > 10
+                }
                 sequence_frequencies = {}
                 sequence_probabilities = {}
-                for sequence in self.sequence_dict.keys():
+                for sequence in sequences_longer_than_10.keys():
                     cut_probabilities, n_cut_sites_in_sequence = self.enzyme.cleave(
                         sequence
                     )
@@ -167,9 +168,7 @@ class ProteolysisSimulator:
                 # Accept middle
                 if len(middle) > 5:
                     self.n_generated_peptides += 1
-                    self.sequence_dict = self.update_sequence_dict(
-                        sequence_to_cut, middle, endo_or_exo="endo"
-                    )
+                    self.sequence_dict = self.update_sequence_dict(middle)
                     if graph:
                         self.sequence_graph = self.update_sequence_graph(
                             sequence_to_cut, middle
@@ -184,9 +183,7 @@ class ProteolysisSimulator:
 
                     if accept:
                         self.n_generated_peptides += 1
-                        self.sequence_dict = self.update_sequence_dict(
-                            sequence_to_cut, sequence, endo_or_exo="endo"
-                        )
+                        self.sequence_dict = self.update_sequence_dict(sequence)
                         if graph:
                             self.sequence_graph = self.update_sequence_graph(
                                 sequence_to_cut, sequence
@@ -206,16 +203,7 @@ class ProteolysisSimulator:
         else:
             return self.sequence_dict
 
-    def update_sequence_dict(self, source_sequence, target_sequence, endo_or_exo: str):
-        # Removed this for assumption-reasons.
-        # if endo_or_exo == "endo":
-        #     sequence_dict[source_sequence] -= .5  # This is here since we want to call this function twice for endoproteases.
-        # else:
-        #     sequence_dict[source_sequence] -= 1
-
-        # if sequence_dict[source_sequence] == 0:
-        #    sequence_dict.pop(source_sequence)
-
+    def update_sequence_dict(self, target_sequence):
         if target_sequence in self.sequence_dict.keys():
             self.sequence_dict[target_sequence] += 1
         else:
