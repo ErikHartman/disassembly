@@ -26,7 +26,7 @@ class Enzyme:
                 n_cuts += 1
         sum_cleavage_probs = sum(cleavage_probabilities)
         if sum_cleavage_probs == 0:
-            cleavage_probabilities = np.ones(len(protein_sequence))
+            cleavage_probabilities = np.ones(len(protein_sequence)-2)
             sum_cleavage_probs = len(protein_sequence)
         cleavage_probabilities = cleavage_probabilities / sum_cleavage_probs
         return cleavage_probabilities, n_cuts
@@ -143,12 +143,16 @@ class ProteolysisSimulator:
                 )[0]
 
                 # Perform two cuts
-                cutting_index1 = int(
-                    random.choices(
-                        list(range(len(sequence_to_cut))),
-                        weights=sequence_probabilities[sequence_to_cut],
-                    )[0]
-                )
+                try:
+                    cutting_index1 = int(
+                        random.choices(
+                            list(range(len(sequence_to_cut))),
+                            weights=sequence_probabilities[sequence_to_cut],
+                        )[0]
+                    )
+                except:
+                    print(sequence_probabilities[sequence_to_cut])
+                    print(len(sequence_probabilities[sequence_to_cut]), len(sequence_to_cut))
 
                 index_to_cut = sequence_probabilities[sequence_to_cut]
 
