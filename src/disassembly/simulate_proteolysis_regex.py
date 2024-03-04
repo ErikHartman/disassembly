@@ -24,7 +24,11 @@ class Enzyme:
             for cleavage_index in cleavage_indices:
                 cleavage_probabilities[cleavage_index] += amount
                 n_cuts += 1
-        cleavage_probabilities = cleavage_probabilities / sum(cleavage_probabilities)
+        sum_cleavage_probs = sum(cleavage_probabilities)
+        if sum_cleavage_probs == 0:
+            cleavage_probabilities = np.ones(len(protein_sequence))
+            sum_cleavage_probs = len(protein_sequence)
+        cleavage_probabilities = cleavage_probabilities / sum_cleavage_probs
         return cleavage_probabilities, n_cuts
 
 
@@ -124,11 +128,17 @@ class ProteolysisSimulator:
                     sequence_probabilities[sequence] = cut_probabilities
                     sequence_frequencies[sequence] = n_cut_sites_in_sequence
 
+                sum_freq = sum(sequence_frequencies.values())
+                if sum_freq == 0:
+                    _add = 1
+                    sum_freq = len(sequence_frequencies.keys())
+                else:
+                    _add = 0
+
                 sequence_to_cut = random.choices(
                     list(sequence_frequencies.keys()),
                     weights=[
-                        p / sum(sequence_frequencies.values())
-                        for p in sequence_frequencies.values()
+                        (p + _add) / sum_freq for p in sequence_frequencies.values()
                     ],
                 )[0]
 
@@ -141,6 +151,7 @@ class ProteolysisSimulator:
                 )
 
                 index_to_cut = sequence_probabilities[sequence_to_cut]
+
                 if sum(index_to_cut) == 0:
                     for index in range(len(index_to_cut)):
                         index_to_cut[index] = self.g.pdf(abs(index - cutting_index1))
