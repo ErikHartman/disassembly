@@ -58,18 +58,28 @@ class Individual:
                 if operator == ".":
                     new_operator = f"[{aa}]"
                 else:
-                    new_operator = (
-                        "[" + operator.removeprefix("[").removesuffix("]") + f"|{aa}]"
-                    )
+                    if "^" in operator:
+                        new_operator = (
+                            "[" + operator.removeprefix("[^").removesuffix("]") + f"|{aa}]"
+                        )
+                    else:
+                        new_operator = (
+                            "[" + operator.removeprefix("[").removesuffix("]") + f"|{aa}]"
+                        )
 
             elif type == "exclusion":
 
                 if operator == ".":
                     new_operator = f"[^{aa}]"
                 else:
-                    new_operator = (
-                        "[" + operator.removeprefix("[").removesuffix("]") + f"|^{aa}]"
-                    )
+                    if "^" in operator:
+                        new_operator = (
+                            "[" + operator.removeprefix("[").removesuffix("]") + f"|{aa}]"
+                        )
+                    else:    
+                        new_operator = (
+                            "[^" + operator.removeprefix("[").removesuffix("]") + f"|{aa}]"
+                        )
 
         elif add_or_delete == "delete":
             if operator == ".":

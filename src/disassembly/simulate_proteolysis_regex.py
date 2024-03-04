@@ -44,7 +44,7 @@ class ProteolysisSimulator:
     def simulate_proteolysis(
         self,
         starting_sequence: str,
-        enzyme: Enzyme = Enzyme("trypsin", {"(.)(.)([RK])(?!P)(.)(.)": 1}),
+        enzyme: Enzyme = Enzyme("trypsin", {"(.)(.)([R|K])([^P])(.)(.)": 1}),
         n_start: int = 10,
         n_generate: int = 100,
         endo_or_exo_probability: list = [0.5, 0.5],
