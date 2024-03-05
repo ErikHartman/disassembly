@@ -98,7 +98,7 @@ class ProteolysisSimulator:
                     seq_dict_keys, weights=self.sequence_dict.values()
                 )[0]
 
-                accept = self.accept_addition(len(sequence_to_chew) - 1)
+                accept = self.accept_addition(len(sequence_to_chew) - 1, min_length=6)
 
                 if accept:
                     self.n_generated_peptides += 1
@@ -191,10 +191,10 @@ class ProteolysisSimulator:
                 # Check if accept others
                 for sequence in [left, right]:
 
-                    accept = self.accept_addition(len(sequence) - 1) and (
-                        (not starting_sequence.startswith(sequence))
-                        and (not starting_sequence.endswith(sequence))
-                    )
+                    accept = self.accept_addition(len(sequence) - 1, min_length=6) #and (
+                      #  (not starting_sequence.startswith(sequence))
+                       # and (not starting_sequence.endswith(sequence))
+                  #  )
 
                     if accept:
                         self.n_generated_peptides += 1

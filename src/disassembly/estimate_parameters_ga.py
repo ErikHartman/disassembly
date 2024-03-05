@@ -107,6 +107,9 @@ class Individual:
 
 
 class ParameterEstimatorGA:
+    """
+    Class to identify regex
+    """
     def __init__(
         self,
         true_distribution: dict,
