@@ -9,7 +9,12 @@ from scipy.stats import gamma
 
 
 class Enzyme:
-    def __init__(self, name: str, cleavage_rules: dict):
+    """
+    Represents an enzyme. 
+
+    cleaveage_rules is a list of tuples with (rule, amount).
+    """
+    def __init__(self, name: str, cleavage_rules: list):
         self.name = name
         self.cleavage_rules = cleavage_rules
 
@@ -17,7 +22,7 @@ class Enzyme:
         cleavage_probabilities = np.zeros(len(protein_sequence))
         protein_sequence = "X" + protein_sequence + "X"
         n_cuts = 0
-        for pattern, amount in self.cleavage_rules.items():
+        for pattern, amount in self.cleavage_rules:
             regex_pattern = re.compile(pattern)
             matches = regex_pattern.finditer(protein_sequence)
             cleavage_indices = [match.start() + 2 for match in matches]
@@ -26,7 +31,7 @@ class Enzyme:
                 n_cuts += 1
         sum_cleavage_probs = sum(cleavage_probabilities)
         if sum_cleavage_probs == 0:
-            cleavage_probabilities = np.ones(len(protein_sequence)-2)
+            cleavage_probabilities = np.ones(len(protein_sequence) - 2)
             sum_cleavage_probs = len(protein_sequence)
         cleavage_probabilities = cleavage_probabilities / sum_cleavage_probs
         return cleavage_probabilities, n_cuts
@@ -44,7 +49,7 @@ class ProteolysisSimulator:
     def simulate_proteolysis(
         self,
         starting_sequence: str,
-        enzyme: Enzyme = Enzyme("trypsin", {"(.)(.)([R|K])([^P])(.)(.)": 1}),
+        enzyme: Enzyme = Enzyme("trypsin", [("(.)(.)([R|K])([^P])(.)(.)", 1)]),
         n_start: int = 10,
         n_generate: int = 100,
         endo_or_exo_probability: list = [0.5, 0.5],
@@ -152,7 +157,10 @@ class ProteolysisSimulator:
                     )
                 except:
                     print(sequence_probabilities[sequence_to_cut])
-                    print(len(sequence_probabilities[sequence_to_cut]), len(sequence_to_cut))
+                    print(
+                        len(sequence_probabilities[sequence_to_cut]),
+                        len(sequence_to_cut),
+                    )
 
                 index_to_cut = sequence_probabilities[sequence_to_cut]
 
@@ -191,10 +199,12 @@ class ProteolysisSimulator:
                 # Check if accept others
                 for sequence in [left, right]:
 
-                    accept = self.accept_addition(len(sequence) - 1, min_length=6) #and (
-                      #  (not starting_sequence.startswith(sequence))
-                       # and (not starting_sequence.endswith(sequence))
-                  #  )
+                    accept = self.accept_addition(
+                        len(sequence) - 1, min_length=6
+                    )  # and (
+                    #  (not starting_sequence.startswith(sequence))
+                    # and (not starting_sequence.endswith(sequence))
+                    #  )
 
                     if accept:
                         self.n_generated_peptides += 1
