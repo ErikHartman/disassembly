@@ -37,16 +37,16 @@ $V_L$ är den längsta peptiden (nod utan in-kanter).
 
 $P(v_L \rightarrow v)$ är sannolikheten att besöka $v$. Också samma som $P(v_L \rightarrow v) = P(v | v_L) / w_v^v$
 
-$ P(\cdot | v) = \bold1_v * w^v_v + \sum_{i \sim v}P(\cdot |i)*w^v_i$
+$ P(\cdot | v) = \bold{1}_v * w^v_v + \sum_{i \sim v}P(\cdot |i)*w^v_i$
 
-$ P(AB) = \bold1_{AB} * w_{AB}^{AB} + P(A)*w_A^{AB} + P(B)*w_B^{AB}$
+$ P(AB) = \bold{1}_{AB} * w_{AB}^{AB} + P(A)*w_A^{AB} + P(B)*w_B^{AB}$
 
 $w_v^v = P(\text{stanna i v})$ därför är sannolikhetsfördelningen av peptider, $P(\cdot)$ en vektor.
 
 Notera att $w_v^v = 1 - \sum_{i \sim v}{w^i_v}$
 
 Därför blir gradienten:
-$ \frac{dP(\cdot | v_L)}{dw^i_v} = P(v_L \rightarrow v)(P(\cdot|i)-\bold1_v)$
+$ \frac{dP(\cdot | v_L)}{dw^i_v} = P(v_L \rightarrow v)(P(\cdot|i)-\bold{1}_v)$
 
 $D_{KL} = log(P(\cdot|v_L)) = \sum_{v \in V}log(P(v|v_L))$
 
@@ -183,7 +183,7 @@ $V_L$ denotes the original protein (bottom node)\;
     \While{$\text{all nodes in } G \text{ is not solved}$}{
         solvable $\gets \{s \in V \mid t \in p_{generated} \text{ for all } (s,t) \in E \}$\;
         \For{$s \in \text{solvable}$}{
-            $p_{generated}[s] = \sum{w_{s,t}*p_{generated}[t]} + 1-\sum{w_{s,t}} *\bold1_t$\;
+            $p_{generated}[s] = \sum{w_{s,t}*p_{generated}[t]} + 1-\sum{w_{s,t}} *\bold{1}_t$\;
         }
     }
     $\hat{T} \gets p_{generated}[V_L]$\;
@@ -194,7 +194,7 @@ $V_L$ denotes the original protein (bottom node)\;
     $L \gets D_{KL}(T \mid \hat{T}) + D_{KL}(\hat{T} \mid T) +L_1 + L_2$\;
     \;
     //compute gradient\;
-    $\frac{dT}{dw} \gets \hat{T}_{V_L, t}(\hat{T}_s - \bold1_s)$\;
+    $\frac{dT}{dw} \gets \hat{T}_{V_L, t}(\hat{T}_s - \bold{1}_s)$\;
     $\frac{dL}{dT} \gets -\frac{T}{\hat{T}}$\;
     $\frac{dL}{dw} \gets \frac{dL}{dT}*\frac{dT}{dw}$\;
     \;
