@@ -6,6 +6,7 @@ import re
 import numpy as np
 import pandas as pd
 import logomaker
+import matplotlib.pyplot as plt
 
 amino_acids = list(amino_acids.values())
 
@@ -242,6 +243,9 @@ class ParameterEstimatorGA:
         self.fitness[-1] = list(self.population.values()).append(0)
         self.fitness[-1]
 
+        print("Running GA...")
+        print("---")
+
         for generation in range(n_generations):
             self.kill_reproduce()
             self.mutate()
@@ -249,7 +253,7 @@ class ParameterEstimatorGA:
             self.evaluate_fitness(generation)
 
             for individual, fitness in self.population.items():
-                self.all_results[individual] = fitness
+                self.all_results[(generation, individual)] = fitness
 
             best_individual = list(self.population.keys())[0]
             best_fitness = self.population[best_individual]
@@ -382,7 +386,8 @@ class ParameterEstimatorGA:
         self.baseline_fitness = {}
         naive_enzyme = Enzyme("naive", [("(.)(.)(.)(.)(.)(.)", 1)])
         unique_protein_sequences = list(set(self.protein_sequences))
-
+        print("Computing baseline fitnesses for all protein sequences...")
+        print("---")
         for protein_sequence in unique_protein_sequences:
             index = self.protein_sequences.index(protein_sequence)
             true_distribution = self.true_distributions[index]
@@ -420,10 +425,13 @@ class ParameterEstimatorGA:
                 d[pos][aa] = 0
 
         max_fitness = max(top_population.values())
-        for seqs, fitness in top_population.items():
+        for id, fitness in top_population.items():
+            generation, seqs = id
+            seqs : Individual
             seqs = seqs.split()
 
             for seq, amount in seqs:
+                seq : str
                 for pos in range(len(seq)):
                     if seq[pos].startswith("[^"):
                         s = seq[pos].removeprefix("[^").removesuffix("]")
@@ -444,4 +452,6 @@ class ParameterEstimatorGA:
             gini = np.sum(row**2)
             ginis.append(gini)
         df = pd.DataFrame(d).T.mul(ginis, axis=0)
-        logomaker.Logo(df, fade_below=0.75)
+        logomaker.Logo(df, fade_below=0.75, figsize=(5,5))
+        plt.xticks([1,2,3,4,5,6], ["p3", "p2", "p1", "p1'", "p2'", "p3'"])
+        plt.ylabel(r"$N \Delta f*gini$")
