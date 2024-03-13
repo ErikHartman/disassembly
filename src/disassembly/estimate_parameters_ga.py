@@ -9,8 +9,6 @@ import logomaker
 
 amino_acids = list(amino_acids.values())
 
-# TODO: Method in Individual that combines rules.
-
 
 class Individual:
     """
@@ -52,6 +50,16 @@ class Individual:
         except re.error:
             print(rule, " is not a valid regex pattern")
         return rule
+
+    def simplify(self):
+        all_rules = {rule: amount for rule, amount in self.rules}
+        simplified_rules = {}
+        for rule, amount in all_rules.items():
+            if rule in simplified_rules.keys():
+                simplified_rules[rule] += amount
+            else:
+                simplified_rules[rule] = amount
+        self.rules = [(rule, amount) for rule, amount in simplified_rules.items()]
 
     def mutate_rule(self, mutation_rate: float):
         """
@@ -170,24 +178,6 @@ class Individual:
 
 
 class ParameterEstimatorGA:
-    """
-
-        ```
-        pega = ParameterEstimatorGA(
-            true_distributions,
-            protein_sequences,
-            n_individuals=20,
-            mutation_rate=0.05,
-            kill_fraction=0.5,
-            n_generate=100,
-            length_penalty=0.1,
-            )
-        pega.run(n_generations=2)
-
-
-        ```
-    """
-
     def __init__(
         self,
         true_distributions: list,
@@ -225,6 +215,7 @@ class ParameterEstimatorGA:
         self.ps = ProteolysisSimulator(verbose=False)
 
         self.init_pop()
+        self._get_baseline_fitness()
         self.evaluate_fitness(0)
 
     def init_pop(self):
@@ -254,6 +245,7 @@ class ParameterEstimatorGA:
         for generation in range(n_generations):
             self.kill_reproduce()
             self.mutate()
+            self.simplify_individuals()
             self.evaluate_fitness(generation)
 
             for individual, fitness in self.population.items():
@@ -271,9 +263,17 @@ class ParameterEstimatorGA:
             self.fitness[generation] = list(self.population.values())
             print(len(self.population))
 
+    def simplify_individuals(self):
+        for individual in self.population.keys():
+            individual: Individual
+            individual.simplify()
+
     def evaluate_fitness(self, generation: int):
         """
-        Evaluate fitness of individuals and sorts the population.
+        Evaluate fitness of individuals:
+
+        - simulate proteolysis with given rules (individuals)
+        - Compute similarity to true distribution
         """
         n_protein_sequences = len(self.protein_sequences)
         protein_sequence = self.protein_sequences[generation % n_protein_sequences]
@@ -289,7 +289,10 @@ class ParameterEstimatorGA:
             )
             t_hat = normalize_dict(t_hat)
             t1, t2 = self._make_comparable(t_hat, true_distribution)
-            loss = self._get_loss(individual, t1, t2)
+            loss = (
+                self._get_loss(individual, t1, t2)
+                / self.baseline_fitness[protein_sequence]
+            )
             self.population[individual] = loss
 
         self.population = {
@@ -298,7 +301,7 @@ class ParameterEstimatorGA:
 
     def kill_reproduce(self):
         """
-        Combine kill and reproduce into one method
+        Combine kill and reroduce into one method
         """
         keys = list(self.population.keys())
         not_kill = keys[: self.n_individuals - self.n_kill]
@@ -331,19 +334,19 @@ class ParameterEstimatorGA:
         for individual in keys:
             individual: Individual
             self.population.pop(individual)
-            individual.mutate_rule(self.mutation_rate) # rule modification
+            individual.mutate_rule(self.mutation_rate)
             self.population[individual] = 0
 
         keys = list(self.population.keys())
         for individual in keys:
             self.population.pop(individual)
-            individual.mutate_amount(self.mutation_rate) # amount bump/decrease
+            individual.mutate_amount(self.mutation_rate)
             self.population[individual] = 0
 
         keys = list(self.population.keys())
         for individual in keys:
             self.population.pop(individual)
-            individual.mutate_rule_drop(self.mutation_rate) # rule drop
+            individual.mutate_rule_drop(self.mutation_rate)
             self.population[individual] = 0
 
         self.population[best_individual] = 0
@@ -372,14 +375,35 @@ class ParameterEstimatorGA:
                 t2_vec.append(t2[key])
         return t1_vec, t2_vec
 
-    def _get_loss(self, individual: Individual, t1: dict, t2: dict):
+    def _get_baseline_fitness(self):
         """
-        Loss = KL(p|q) + KL(q|p) + lambda*n_letters
-        """ 
+        Computes a baseline value for the loss for each unique protein sequence
+        """
+        self.baseline_fitness = {}
+        naive_enzyme = Enzyme("naive", [("(.)(.)(.)(.)(.)(.)", 1)])
+        unique_protein_sequences = list(set(self.protein_sequences))
+
+        for protein_sequence in unique_protein_sequences:
+            index = self.protein_sequences.index(protein_sequence)
+            true_distribution = self.true_distributions[index]
+            t_hat = self.ps.simulate_proteolysis(
+                protein_sequence,
+                enzyme=naive_enzyme,
+                n_generate=self.n_generate,
+                graph=False,
+                length_params="vitro",
+            )
+            t_hat = normalize_dict(t_hat)
+            t1, t2 = self._make_comparable(t_hat, true_distribution)
+            loss = KL(t1, t2) + KL(t2, t1)
+            self.baseline_fitness[protein_sequence] = loss
+
+    def _get_loss(self, individual: Individual, t1: dict, t2: dict):
         penalty = self.length_penalty * sum(
             [len(re.findall("[A-Z]", rule)) for rule, _ in individual.rules]
         )
-        loss = (KL(t1, t2) + KL(t2, t1)) + penalty
+        loss = KL(t1, t2) + KL(t2, t1)
+        loss += penalty
         return loss
 
     def plot(self, topn: int = 10):
