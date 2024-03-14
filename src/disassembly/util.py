@@ -38,6 +38,10 @@ def KL(true, guess):
 
     return np.sum(np.where(true != 0, true * np.log(true / guess), 0))
 
+def abs_err(true, guess):
+    true = np.asarray(list(true))
+    guess = np.asarray(list(guess))
+    return np.sum(np.abs(true - guess))
 
 def get_nrmse(true, observed):
     true = np.array(true)

@@ -8,6 +8,9 @@ import pandas as pd
 import logomaker
 import matplotlib.pyplot as plt
 
+# TODO: Remove rules which are never realized. - I realized that this might not be good since it hinders some development.
+
+
 amino_acids = list(amino_acids.values())
 
 
@@ -171,6 +174,10 @@ class Individual:
                     self.rules.append(("(.)(.)(.)(.)(.)(.)", 1))
                     break
 
+    def mutate_inject(self, true_window_dist: dict, prob_sample_at_index: list):
+        sampled_regex = sample_regex(true_window_dist, prob_sample_at_index)
+        self.rules.append((sampled_regex, 1))
+
     def __repr__(self) -> str:
         s = str(self.id) + ":"
         for rule, amount in self.rules:
@@ -215,9 +222,13 @@ class ParameterEstimatorGA:
         self.length_penalty = length_penalty
         self.ps = ProteolysisSimulator(verbose=False)
 
+        self.true_window_distribution, self.prob_sample_at_index = (
+            create_true_window_dist(
+                self.protein_sequences, self.true_distributions, max_prob=0.8
+            )
+        )
         self.init_pop()
         self._get_baseline_fitness()
-        self.evaluate_fitness(0)
 
     def init_pop(self):
         """
@@ -231,7 +242,9 @@ class ParameterEstimatorGA:
             individual = Individual([(ind_regex, 1)])
             self.population[individual] = 0  # fitness init as 0
 
-    def run(self, n_generations: int = 10):
+    def run(
+        self, n_generations: int = 10, temp_start: float = 1.0, temp_end: float = 5.0
+    ):
         """
         Main run-method
         """
@@ -242,6 +255,8 @@ class ParameterEstimatorGA:
 
         self.fitness[-1] = list(self.population.values()).append(0)
         self.fitness[-1]
+        self.temperature = np.linspace(temp_start, temp_end, n_generations)
+        self.evaluate_fitness(0)
 
         print("Running GA...")
         print("---")
@@ -294,7 +309,7 @@ class ParameterEstimatorGA:
             t_hat = normalize_dict(t_hat)
             t1, t2 = self._make_comparable(t_hat, true_distribution)
             loss = (
-                self._get_loss(individual, t1, t2)
+                self._get_loss(individual, t1, t2, generation)
                 / self.baseline_fitness[protein_sequence]
             )
             self.population[individual] = loss
@@ -353,6 +368,16 @@ class ParameterEstimatorGA:
             individual.mutate_rule_drop(self.mutation_rate)
             self.population[individual] = 0
 
+        keys = list(self.population.keys())
+        for individual in keys:
+            u = random.random()
+            if u <= self.mutation_rate:
+                self.population.pop(individual)
+                individual.mutate_inject(
+                    self.true_window_distribution, self.prob_sample_at_index
+                )
+                self.population[individual] = 0
+
         self.population[best_individual] = 0
 
     def _initialize_aminoacids(self, i: int):
@@ -403,13 +428,26 @@ class ParameterEstimatorGA:
             loss = KL(t1, t2) + KL(t2, t1)
             self.baseline_fitness[protein_sequence] = loss
 
-    def _get_loss(self, individual: Individual, t1: dict, t2: dict):
+    def _get_loss(self, individual: Individual, t1: dict, t2: dict, generation: int):
         penalty = self.length_penalty * sum(
             [len(re.findall("[A-Z]", rule)) for rule, _ in individual.rules]
         )
         loss = KL(t1, t2) + KL(t2, t1)
-        loss += penalty
+        loss += penalty * self.temperature[generation]
         return loss
+
+    def _get_final_individual(self, topn: int = 10):
+        """
+        Returns an individual which is a combination of the best individuals
+        """
+        top_population = {
+            k: v
+            for k, v in sorted(self.all_results.items(), key=lambda item: item[1])[
+                0:topn
+            ]
+        }
+
+        pass
 
     def plot(self, topn: int = 10):
         d = {}
@@ -427,11 +465,11 @@ class ParameterEstimatorGA:
         max_fitness = max(top_population.values())
         for id, fitness in top_population.items():
             generation, seqs = id
-            seqs : Individual
+            seqs: Individual
             seqs = seqs.split()
 
             for seq, amount in seqs:
-                seq : str
+                seq: str
                 for pos in range(len(seq)):
                     if seq[pos].startswith("[^"):
                         s = seq[pos].removeprefix("[^").removesuffix("]")
@@ -452,6 +490,52 @@ class ParameterEstimatorGA:
             gini = np.sum(row**2)
             ginis.append(gini)
         df = pd.DataFrame(d).T.mul(ginis, axis=0)
-        logomaker.Logo(df, fade_below=0.75, figsize=(5,5))
-        plt.xticks([1,2,3,4,5,6], ["p3", "p2", "p1", "p1'", "p2'", "p3'"])
+        logomaker.Logo(df, fade_below=0.75, figsize=(5, 5))
+        plt.xticks([0, 1, 2, 3, 4, 5], ["p3", "p2", "p1", "p1'", "p2'", "p3'"])
         plt.ylabel(r"$N \Delta f*gini$")
+
+
+def create_true_window_dist(
+    protein_sequences: list, true_distributions: list, max_prob: float = 1.0
+):
+    true_window_dist = {}
+    for pseq, tdist in zip(protein_sequences, true_distributions):
+        tdist: dict
+        pseq: str
+        for seq, amount in tdist.items():
+            i = pseq.find(seq)
+            window = pseq[i - 3 : i + 3]
+            if len(window) == 6:
+                if window in true_window_dist.keys():
+                    true_window_dist[window] += amount
+                else:
+                    true_window_dist[window] = amount - 1
+
+    true_window_dist = normalize_dict(true_window_dist)
+    pos_dist = {i: {aa: 0 for aa in amino_acids} for i in range(6)}
+    for seq, amount in true_window_dist.items():
+        for index in range(len(seq)):
+            pos_dist[index][seq[index]] += amount
+    prob_sample_at_index = []
+    for index in pos_dist.keys():
+        dist = np.array(list(pos_dist[index].values()))
+        prob_sample_at_index.append(np.sum(dist**2))
+
+    mult = max_prob / max(prob_sample_at_index)
+    prob_sample_at_index = [p * mult for p in prob_sample_at_index]
+    return true_window_dist, prob_sample_at_index
+
+
+def sample_regex(true_window_dist: dict, prob_sample_at_index: list):
+
+    s_regex = ""
+    for index in range(6):
+        if np.random.random() < prob_sample_at_index[index]:
+            seq = random.choices(
+                population=list(true_window_dist.keys()),
+                weights=list(true_window_dist.values()),
+            )[0]
+            s_regex += f"([{seq[index]}])"
+        else:
+            s_regex += "(.)"
+    return s_regex
